@@ -54,11 +54,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget _body() {
     switch (_tab) {
       case 1:
-        return const HistoryView();
+        return HistoryView();
       case 2:
-        return const SettingsView();
+        return SettingsView();
       default:
-        return const TodayView();
+        return TodayView();
     }
   }
 

@@ -74,8 +74,13 @@ class Store extends ChangeNotifier {
     _loadCache();
     user = sb.auth.currentUser;
     sb.auth.onAuthStateChange.listen((data) async {
-      user = data.session?.user;
-      if (user != null) {
+      final newUser = data.session?.user;
+      final changed = newUser?.id != user?.id;
+      user = newUser;
+      // Only pull when the account actually changes (login / switch).
+      // Pulling on every token refresh would overwrite fresh local taps.
+      if (user != null && changed) {
+        await _prefs.setInt(_kTs, 0); // don't let the old account's cache win the merge
         await pull();
       }
       notifyListeners();
@@ -172,7 +177,13 @@ class Store extends ChangeNotifier {
           await _push();
         }
       } else {
+        // Brand-new account: start clean, don't inherit the previous account's data.
+        habits = _defaults();
+        log = {};
+        goal = Goal(label: '101 Day Sprint', start: _today(), target: '2026-12-31');
+        await _prefs.setString(_kCache, jsonEncode(_stateJson()));
         await _prefs.setInt(_kTs, DateTime.now().millisecondsSinceEpoch);
+        notifyListeners();
         await _push();
       }
     } catch (_) {

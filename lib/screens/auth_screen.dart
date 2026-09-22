@@ -55,7 +55,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(18),
                   child: Image.asset('assets/icon-512.png',
-                      width: 68, height: 68, fit: BoxFit.cover),
+                      width: 68, height: 68, fit: BoxFit.contain),
                 ),
                 const SizedBox(height: 22),
                 const Text('Josh Tracker',
