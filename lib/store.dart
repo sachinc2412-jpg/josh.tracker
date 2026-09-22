@@ -1,242 +1,237 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'config.dart';
+import 'models.dart';
+import 'services/reminders.dart';
+export 'models.dart';
 
-class Habit {
-  final String id;
-  String name;
-  String emoji;
-  Habit({required this.id, required this.name, required this.emoji});
-
-  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'emoji': emoji};
-  factory Habit.fromJson(Map<String, dynamic> j) =>
-      Habit(id: j['id'].toString(), name: j['name'] ?? '', emoji: j['emoji'] ?? '⭐');
-}
-
-class Goal {
-  String label;
-  String start; // yyyy-MM-dd
-  String target; // yyyy-MM-dd
-  Goal({required this.label, required this.start, required this.target});
-
-  Map<String, dynamic> toJson() => {'label': label, 'start': start, 'target': target};
-  factory Goal.fromJson(Map<String, dynamic> j) => Goal(
-        label: j['label'] ?? 'Sprint',
-        start: j['start'] ?? _today(),
-        target: j['target'] ?? '2026-12-31',
-      );
-}
-
-String _today() => DateTime.now().toIso8601String().split('T').first;
-
-int daysBetween(String a, String b) {
-  final da = DateTime.parse(a);
-  final db = DateTime.parse(b);
-  return db.difference(da).inDays;
-}
-
-class Sprint {
-  final int total, elapsed, remaining;
-  final double pct;
-  Sprint(this.total, this.elapsed, this.remaining, this.pct);
-}
-
-const _kCache = 'josh_state_cache';
-const _kTs = 'josh_state_ts';
-
-List<Habit> _defaults() => [
-      Habit(id: '1', name: '90 Min Hour Trade', emoji: '📈'),
-      Habit(id: '2', name: '90 Min Meta Learning', emoji: '🧠'),
-      Habit(id: '3', name: 'Gym', emoji: '🏋️'),
-      Habit(id: '4', name: 'Diet', emoji: '🥗'),
-      Habit(id: '5', name: 'Sleep', emoji: '😴'),
-    ];
+enum SyncState { saved, syncing, waiting, localError }
 
 class Store extends ChangeNotifier {
-  final SupabaseClient sb = Supabase.instance.client;
+  SupabaseClient get sb => Supabase.instance.client;
   late SharedPreferences _prefs;
-
-  List<Habit> habits = _defaults();
-  Map<String, Map<String, bool>> log = {};
-  Goal goal = Goal(label: '101 Day Sprint', start: _today(), target: '2026-12-31');
+  final reminders = Reminders();
+  TrackerData data = TrackerData.empty();
   User? user;
-  bool ready = false;
-  bool _pending = false;
+  bool ready = false, accountReady = false;
+  bool _foreground = true;
+  int _generation = 0;
+  final List<Json> _pending = [];
+  Future<void> _disk = Future.value();
+  Future<void>? _syncing;
+  SyncState syncState = SyncState.waiting;
+  String? syncError;
+  DateTime? lastSynced;
+  String? openHabitId;
+  int openRequest = 0;
+  DateTime now = DateTime.now();
+  Timer? _clock;
+  StreamSubscription<AuthState>? _authSubscription;
+  String get todayKey => dayKey(now);
+  List<Habit> get habits => data.habits;
+  int get pendingCount => _pending.length;
+  String get name => (data.prefs['name'] as String? ?? 'Joshua').trim();
+  String get syncLabel => switch(syncState) {
+    SyncState.saved => 'Saved', SyncState.syncing => 'Syncing',
+    SyncState.waiting => 'Waiting to sync', SyncState.localError => 'Not saved on device',
+  };
 
-  String get todayKey => _today();
-
-  // ---------- lifecycle ----------
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
-    _loadCache();
-    user = sb.auth.currentUser;
-    sb.auth.onAuthStateChange.listen((data) async {
-      final newUser = data.session?.user;
-      final changed = newUser?.id != user?.id;
-      user = newUser;
-      // Only pull when the account actually changes (login / switch).
-      // Pulling on every token refresh would overwrite fresh local taps.
-      if (user != null && changed) {
-        await _prefs.setInt(_kTs, 0); // don't let the old account's cache win the merge
-        await pull();
-      }
-      notifyListeners();
+    await reminders.init();
+    reminders.onOpen = (id) { openHabitId = id; openRequest++; notifyListeners(); };
+    openHabitId = await reminders.launchHabit();
+    if (openHabitId != null) openRequest++;
+    _authSubscription = sb.auth.onAuthStateChange.listen((event) {
+      if (event.session?.user.id != user?.id) unawaited(_openAccount(event.session?.user));
     });
-    if (user != null) await pull();
     ready = true;
-    notifyListeners();
-  }
-
-  // ---------- local cache ----------
-  void _loadCache() {
-    final raw = _prefs.getString(_kCache);
-    if (raw == null) return;
-    try {
-      final j = jsonDecode(raw) as Map<String, dynamic>;
-      if (j['habits'] is List) {
-        habits = (j['habits'] as List).map((e) => Habit.fromJson(e)).toList();
-      }
-      if (j['log'] is Map) log = _decodeLog(j['log']);
-      if (j['goal'] is Map) goal = Goal.fromJson(j['goal']);
-    } catch (_) {}
-  }
-
-  Map<String, Map<String, bool>> _decodeLog(dynamic raw) {
-    final out = <String, Map<String, bool>>{};
-    (raw as Map).forEach((day, v) {
-      final inner = <String, bool>{};
-      (v as Map).forEach((hid, val) => inner[hid.toString()] = val == true);
-      out[day.toString()] = inner;
+    unawaited(_openAccount(sb.auth.currentUser));
+    _clock = Timer.periodic(const Duration(seconds:30), (_) {
+      if (!_foreground) return;
+      final old = todayKey;
+      now = DateTime.now();
+      if (old != todayKey) unawaited(reminders.update(data,user?.id));
+      notifyListeners();
+      unawaited(sync());
     });
-    return out;
   }
-
-  Map<String, dynamic> _stateJson() => {
-        'habits': habits.map((h) => h.toJson()).toList(),
-        'log': log,
-        'goal': goal.toJson(),
-      };
-
-  int _ts() => _prefs.getInt(_kTs) ?? 0;
-
-  Future<void> _persist({bool bump = true}) async {
-    notifyListeners(); // paint the change immediately
-    await _prefs.setString(_kCache, jsonEncode(_stateJson()));
-    if (bump) {
-      await _prefs.setInt(_kTs, DateTime.now().millisecondsSinceEpoch);
-      _push();
-    }
+  @override
+  void dispose() {
+    _clock?.cancel();
+    _authSubscription?.cancel();
+    super.dispose();
   }
-
-  // ---------- cloud sync (one JSON row per user, last-write-wins) ----------
-  Future<void> _push() async {
-    if (user == null) {
-      _pending = true;
-      return;
-    }
-    try {
-      final ts = _ts();
-      await sb.from('tracker_state').upsert({
-        'user_id': user!.id,
-        'habits': habits.map((h) => h.toJson()).toList(),
-        'log': log,
-        'goal': goal.toJson(),
-        'updated_at':
-            DateTime.fromMillisecondsSinceEpoch(ts).toUtc().toIso8601String(),
-      });
-      _pending = false;
-    } catch (_) {
-      _pending = true;
-    }
-  }
-
-  Future<void> pull() async {
-    if (user == null) return;
-    try {
-      final data = await sb
-          .from('tracker_state')
-          .select()
-          .eq('user_id', user!.id)
-          .maybeSingle();
-      if (data != null) {
-        final serverTs =
-            DateTime.tryParse(data['updated_at'] ?? '')?.millisecondsSinceEpoch ?? 0;
-        if (serverTs >= _ts()) {
-          if (data['habits'] is List) {
-            habits = (data['habits'] as List).map((e) => Habit.fromJson(e)).toList();
-          }
-          if (data['log'] is Map) log = _decodeLog(data['log']);
-          if (data['goal'] is Map) goal = Goal.fromJson(data['goal']);
-          await _prefs.setString(_kCache, jsonEncode(_stateJson()));
-          await _prefs.setInt(_kTs, serverTs);
-          notifyListeners();
-        } else {
-          await _push();
-        }
-      } else {
-        // Brand-new account: start clean, don't inherit the previous account's data.
-        habits = _defaults();
-        log = {};
-        goal = Goal(label: '101 Day Sprint', start: _today(), target: '2026-12-31');
-        await _prefs.setString(_kCache, jsonEncode(_stateJson()));
-        await _prefs.setInt(_kTs, DateTime.now().millisecondsSinceEpoch);
-        notifyListeners();
-        await _push();
+  Future<void> _openAccount(User? next) async {
+    final generation = ++_generation;
+    user = next; accountReady = false;
+    data = TrackerData.empty(); _pending.clear();
+    syncError = null; lastSynced = null; syncState = SyncState.waiting;
+    notifyListeners();
+    await reminders.update(data,null);
+    if (generation != _generation || next == null) return;
+    final raw = _prefs.getString('josh_v2_${next.id}');
+    if (raw != null) {
+      try {
+        final cached = jsonMap(jsonDecode(raw));
+        data = TrackerData(jsonMap(cached['state']));
+        _pending.addAll((cached['pending'] as List? ?? []).map(jsonMap));
+        lastSynced = DateTime.tryParse(cached['lastSynced'] as String? ?? '');
+        accountReady = true;
+      } catch (_) {
+        syncError = 'Local data could not be read. It has been kept for recovery.';
+        notifyListeners(); return;
       }
-    } catch (_) {
-      _pending = true;
+    } else {
+      try {
+        // Account-scoped cloud migration; never assume the old global cache belongs to this user.
+        final old = await sb.from('tracker_state').select().eq('user_id',next.id).maybeSingle().timeout(const Duration(seconds:15));
+        if (generation != _generation) return;
+        data = old == null ? TrackerData.empty() : TrackerData.legacy(old);
+        accountReady = true;
+        await _save();
+      } catch (_) {
+        if (generation != _generation) return;
+        syncError = 'Connect once to load your account safely, then offline tracking will be available.';
+        notifyListeners(); return;
+      }
+    }
+    notifyListeners();
+    await reminders.update(data,user?.id);
+    await sync();
+  }
+  Future<void> retry() async {
+    if (!accountReady) { await _openAccount(sb.auth.currentUser); } else { await sync(); }
+  }
+  Future<void> _save() {
+    final uid = user?.id;
+    if (uid == null) return Future.value();
+    final payload = jsonEncode({'state':data.json, 'pending':_pending,
+      'lastSynced':lastSynced?.toIso8601String()});
+    final job = _disk.catchError((Object _) {}).then((_) async {
+      if (!await _prefs.setString('josh_v2_$uid',payload)) throw StateError('Local save failed');
+    });
+    _disk = job;
+    return job;
+  }
+  Future<void> edit(String type, Json value, {String? key, String? day}) async {
+    final generation = _generation;
+    final op = <String,dynamic>{'id':'${DateTime.now().microsecondsSinceEpoch}-${Random.secure().nextInt(1<<32)}',
+      'type':type, 'value':value, if(key!=null)'key':key, if(day!=null)'day':day};
+    data.apply(op); _pending.add(op); syncState = SyncState.waiting;
+    notifyListeners();
+    try { await _save(); } catch (_) {
+      if (generation != _generation) return;
+      syncState = SyncState.localError; syncError = 'Your device could not save this change. Free some storage and retry.';
+      notifyListeners(); return;
+    }
+    if (generation != _generation) return;
+    await reminders.update(data,user?.id);
+    unawaited(sync());
+  }
+  Future<void> sync() async {
+    if (user == null || !accountReady) return;
+    if (_syncing != null) { await _syncing; return; }
+    final job = _runSync(); _syncing = job;
+    try { await job; } finally { _syncing = null; }
+  }
+  Future<void> _runSync() async {
+    final uid = user!.id, generation = _generation;
+    syncState = SyncState.syncing; syncError = null; notifyListeners();
+    try {
+      try {
+        await _save(); // persist queue before the network request
+      } catch (_) {
+        if (generation == _generation) {
+          syncState = SyncState.localError;
+          syncError = 'Not saved on this device. Free some storage and retry.';
+          notifyListeners();
+        }
+        return;
+      }
+      if (generation != _generation) return;
+      final batch = _pending.take(250).toList();
+      final result = await sb.rpc('josh_sync_v2',params:{'p_ops':batch,'p_seed':data.json}).timeout(const Duration(seconds:15));
+      if (generation != _generation || user?.id != uid) return;
+      final ack = batch.map((e)=>e['id']).toSet();
+      _pending.removeWhere((e)=>ack.contains(e['id']));
+      data = TrackerData(jsonMap(result));
+      for (final op in _pending) { data.apply(op); }
+      lastSynced = DateTime.now();
+      try {
+        await _save();
+      } catch (_) {
+        if (generation == _generation) {
+          syncState = SyncState.localError;
+          syncError = 'Saved to your account, but this device could not update its local copy. Free some storage and retry.';
+          notifyListeners();
+        }
+        return;
+      }
+      if (generation != _generation) return;
+      syncState = _pending.isEmpty ? SyncState.saved : SyncState.waiting;
+      await reminders.update(data,uid);
+    } catch (e) {
+      if (generation != _generation) return;
+      syncState = SyncState.waiting;
+      syncError = e is PostgrestException && (e.code == 'PGRST202' || e.code == '42P01')
+          ? 'Cloud upgrade needed. Your changes stay on this device until the included Supabase setup is installed.'
+          : 'Could not reach cloud sync. Changes remain queued on this device. Tap Retry when connected.';
+    }
+    if (generation == _generation) notifyListeners();
+  }
+  void foreground(bool value) {
+    _foreground = value;
+    if (value) {
+      now = DateTime.now(); notifyListeners();
+      unawaited(reminders.status().then((_)=>reminders.update(data,user?.id)));
+      unawaited(sync());
     }
   }
-
-  Future<void> retryIfPending() async {
-    if (_pending) await _push();
+  Future<void> setValue(Habit h, double value, {String? day}) => edit('log', {
+    'value':value.clamp(0,1000000), 'target':h.dailyTarget, 'kind':h.kind, 'unit':h.unit,
+  },key:h.id,day:day??todayKey);
+  Future<void> toggle(String id) {
+    final h = habits.firstWhere((h)=>h.id==id);
+    return setValue(h,data.completed(h,todayKey)?0:h.dailyTarget);
   }
-
-  // ---------- mutations ----------
-  Future<void> toggle(String habitId) async {
-    final day = log.putIfAbsent(todayKey, () => {});
-    day[habitId] = !(day[habitId] ?? false);
-    await _persist();
+  Future<void> saveHabit(Json values, {Habit? existing}) async {
+    final id = existing?.id ?? DateTime.now().microsecondsSinceEpoch.toString();
+    final versions = [...(existing?.data['versions'] as List? ?? [])];
+    if (existing != null && versions.isEmpty) versions.add({...existing.data,'from':existing.created});
+    versions.removeWhere((v)=>jsonMap(v)['from']==todayKey);
+    versions.add({...values,'from':todayKey});
+    await edit('habit',{...?(existing?.data),...values,'id':id,
+      'created':existing?.created??todayKey,'versions':versions},key:id);
   }
-
-  Future<void> addHabit(String name, String emoji) async {
-    habits.add(Habit(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        name: name,
-        emoji: emoji.isEmpty ? '⭐' : emoji));
-    await _persist();
+  Future<void> archive(Habit h) => edit('habit',{...h.data,'archived':todayKey},key:h.id);
+  Future<void> preferences(Json values) => edit('prefs',values);
+  Future<void> updateGoal(Json values) => edit('goal',values);
+  Future<void> completeSetup(String displayName, String goal, List<Json> selected, bool enable, int quietStart, int quietEnd) async {
+    for (final h in selected) { await saveHabit(h); }
+    await updateGoal({'label':goal.trim()});
+    await preferences({'name':displayName.trim(),'onboarded':true,'reminders':enable,
+      'quietStart':quietStart,'quietEnd':quietEnd});
   }
-
-  Future<void> deleteHabit(String id) async {
-    habits.removeWhere((h) => h.id == id);
-    await _persist();
+  String exportJson() => const JsonEncoder.withIndent('  ').convert(data.json);
+  String exportCsv() {
+    String q(Object? value) => '"${value.toString().replaceAll('"','""')}"';
+    final rows = <String>['Date,Habit,Value,Target,Unit,Completed'];
+    final dates = data.logs.keys.toList()..sort();
+    for(final day in dates) {
+      for(final h in data.allHabits) {
+        final e = data.entry(h.id,day);
+        if(e.isEmpty) continue;
+        rows.add([day,h.on(day).name,e['value'],e['target'],e['unit'],data.completed(h,day)].map(q).join(','));
+      }
+    }
+    return rows.join('\n');
   }
-
-  Future<void> updateGoal({String? label, String? start, String? target}) async {
-    if (label != null) goal.label = label;
-    if (start != null) goal.start = start;
-    if (target != null) goal.target = target;
-    await _persist();
-  }
-
-  // ---------- derived ----------
-  int doneOn(String day) {
-    final d = log[day] ?? {};
-    return habits.where((h) => d[h.id] == true).length;
-  }
-
-  double todayPct() => habits.isEmpty ? 0 : doneOn(todayKey) / habits.length;
-
-  Sprint sprint() {
-    final total = daysBetween(goal.start, goal.target).clamp(1, 1 << 30);
-    final elapsed = daysBetween(goal.start, todayKey).clamp(0, total);
-    final remaining = daysBetween(todayKey, goal.target).clamp(0, 1 << 30);
-    return Sprint(total, elapsed, remaining, elapsed / total);
-  }
-
   // ---------- auth ----------
   Future<String?> signInGoogle() async {
     try {
@@ -285,23 +280,5 @@ class Store extends ChangeNotifier {
     await sb.auth.signOut();
   }
 
-  // ---------- export ----------
-  String exportCsv() {
-    final rows = <String>['"Date","Task","Completed"'];
-    final days = log.keys.toList()..sort();
-    for (final d in days) {
-      for (final h in habits) {
-        final done = (log[d]?[h.id] ?? false) ? 'Yes' : 'No';
-        rows.add('"$d","${h.name.replaceAll('"', '""')}","$done"');
-      }
-    }
-    return rows.join('\n');
-  }
 
-  String exportJson() => const JsonEncoder.withIndent('  ').convert({
-        'habits': habits.map((h) => h.toJson()).toList(),
-        'log': log,
-        'goal': goal.toJson(),
-        'exportedAt': DateTime.now().toIso8601String(),
-      });
 }

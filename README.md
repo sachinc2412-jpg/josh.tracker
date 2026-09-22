@@ -1,81 +1,32 @@
-# Josh Tracker — Flutter (native Android)
+# Josh Tracker 2 — a little better, every day
 
-Native rewrite of the tracker. Same features, native UI, and **native Google sign-in**
-(account picker — no WebView, no deep links). Supabase keys are already baked into
-`lib/config.dart`. You only need to fill the Google **web client ID**.
+Android / Flutter personal habit tracker with Google and email sign-in, Supabase, an Apple-inspired dark interface, adaptive dashboard, quantity and weekly goals, onboarding, insights, offline edits and native Android reminders.
 
-## 0. Prereqs
-- Flutter SDK installed and green:  `flutter doctor`
-- Android Studio / SDK (you already have it)
+**Start with [START_HERE.md](START_HERE.md). This version requires a one-time Supabase SQL upgrade before cloud sync works.**
 
-## 1. Create the shell, drop in this code
-Flutter needs the native `android/` + `ios/` folders generated for your machine:
+Shorebird is not included. This is a source project, not a compiled APK.
 
-```bash
-flutter create --org com.josh --project-name tracker josh_tracker_app
-cd josh_tracker_app
-```
-Then copy from this bundle into that project, overwriting:
-- `pubspec.yaml`
-- the whole `lib/` folder
-- the `assets/` folder (holds `icon-512.png`)
+## What changed
 
-Set the Android package id — open `android/app/build.gradle`, confirm:
-```
-applicationId "com.josh.tracker"
-```
-(matches `--org com.josh` + name `tracker`). Then:
-```bash
+- Dashboard: time-aware greeting, original motivational prompts based on incomplete habits, animated progress ring, next useful action, current streak, weekly wins and bigger goal.
+- Habits: daily checkboxes, measured daily amounts, selected weekdays, and goals such as gym on four days each week. Edit targets, categories and reminder times; archive without deleting earlier history.
+- Insights: this week’s completion rate, same-weekday comparison, active-day streaks, daily chart and individual habit progress.
+- Onboarding: name, bigger goal, optional starter habits, notification opt-in and quiet hours. Existing habits stay; starter habits are optional additions.
+- Reminders: each habit’s time, remaining-habit daily summary, 30-minute snooze, quiet hours, Android permission UI and a test notification.
+- Sync: account-specific local cache and durable pending edits; automatic retry while foregrounded, on resume, pull-to-refresh and a manual Retry action. Atomic cloud merge and operation IDs prevent retry duplication.
+- Native Android scheduling rechecks local progress at delivery, restores after reboot and uses inexact battery-friendly alarms. No paid notification provider or additional Flutter runtime package.
+
+## Build
+
+From the project folder on your existing Flutter machine:
+
+```sh
 flutter pub get
-```
-
-## 2. Google sign-in setup (the one real chore)
-Native Google needs two OAuth clients in the **same** Google Cloud project you used
-for the web version.
-
-1. **Get your app's SHA-1** (debug key):
-   ```bash
-   cd android && ./gradlew signingReport
-   ```
-   Copy the `SHA1` under `Variant: debug`.
-2. Google Cloud → **APIs & Services → Credentials → Create credentials → OAuth client ID → Android**:
-   - Package name: `com.josh.tracker`
-   - SHA-1: paste the one above.
-3. You already have a **Web** OAuth client (from the web build). Copy its **Client ID**
-   and paste into `lib/config.dart`:
-   ```dart
-   static const googleServerClientId = '....apps.googleusercontent.com';
-   ```
-   (Use the **Web** client ID here, not the Android one — that's what makes Google
-   return an ID token Supabase accepts.)
-4. Supabase → Authentication → Providers → Google: already enabled with that Web
-   client ID + secret. Nothing to change.
-
-> Release builds use a different signing key → add that keystore's SHA-1 as a second
-> Android OAuth client when you ship.
-
-## 3. Run
-```bash
+flutter analyze --no-fatal-infos
+flutter test
 flutter run
 ```
-Plug in the phone (USB debugging on) or use an emulator. Tap **Continue with Google** —
-native account sheet appears, pick account, you're in. Email/password fallback also works.
 
-## 4. App icon + name
-- Launcher icon: drop your 1024px logo at `assets/icon.png` and use
-  `flutter_launcher_icons` (add to dev_deps), or set it in Android Studio.
-- Name under the icon: `android/app/src/main/AndroidManifest.xml` → `android:label`.
+Use an Android device/emulator. Restart the app fully after the native code changes. A Windows desktop launch does not exercise Android notifications or native Google sign-in.
 
-## 5. Build the apk
-```bash
-flutter build apk --debug     # sideload on your phone
-flutter build apk --release   # signed release (set up signing first)
-```
-Output: `build/app/outputs/flutter-apk/`.
-
-## Notes / honest limits
-- Data model unchanged: one JSON row per user in `tracker_state`, offline cache in
-  shared_preferences, **last-write-wins** on a timestamp. Not a multi-device merge.
-- Not compile-tested in my environment. Run `flutter analyze` after `pub get`; if
-  anything errors, paste it and I'll patch — most likely a package-version tweak.
-- The Google "G" on the button is a plain mark; swap for the multicolour SVG if you want.
+See START_HERE.md for installation, migration and notification details. See VALIDATION.md for the exact checks performed and remaining device tests.

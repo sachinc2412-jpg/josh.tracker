@@ -2,216 +2,50 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../config.dart';
 import '../main.dart';
-import '../store.dart';
+import '../models.dart';
+import '../widgets/ui.dart';
 
 class HistoryView extends StatefulWidget {
   const HistoryView({super.key});
   @override
-  State<HistoryView> createState() => _HistoryViewState();
+  State<HistoryView> createState()=>_HistoryViewState();
 }
-
 class _HistoryViewState extends State<HistoryView> {
-  int _monthOffset = 0;
-  String _selected = DateTime.now().toIso8601String().split('T').first;
-  String _filter = 'all';
-
+  int _offset=0;
+  String _selected=dayKey(DateTime.now());
   @override
   Widget build(BuildContext context) {
-    if (_filter != 'all' && !store.habits.any((h) => h.id == _filter)) {
-      _filter = 'all';
-    }
-    final now = DateTime.now();
-    final base = DateTime(now.year, now.month + _monthOffset, 1);
-    final days = DateUtils.getDaysInMonth(base.year, base.month);
-    final firstWeekday = DateTime(base.year, base.month, 1).weekday % 7; // Sun=0
-    final total = store.habits.length;
-    final filterHabit =
-        _filter == 'all' ? null : store.habits.where((h) => h.id == _filter).firstOrNull;
-
-    final cells = <Widget>[];
-    for (var i = 0; i < firstWeekday; i++) {
-      cells.add(const SizedBox.shrink());
-    }
-    for (var d = 1; d <= days; d++) {
-      final key = DateFormat('yyyy-MM-dd').format(DateTime(base.year, base.month, d));
-      final future = key.compareTo(store.todayKey) > 0;
-      final dayLog = store.log[key] ?? {};
-      Color bg = C.card;
-      Color fg = C.label2;
-      if (future) {
-        bg = C.card;
-        fg = C.label3;
-      } else if (filterHabit != null) {
-        final ok = dayLog[filterHabit.id] == true;
-        bg = ok ? C.green : const Color(0x47FF453A);
-        fg = Colors.white;
-      } else {
-        final done = store.doneOn(key);
-        if (total > 0 && done == total) {
-          bg = C.green; fg = Colors.white;
-        } else if (done > 0) {
-          bg = C.blue; fg = Colors.white;
-        } else {
-          bg = const Color(0x47FF453A); fg = Colors.white70;
-        }
-      }
-      final selected = key == _selected;
-      cells.add(GestureDetector(
-        onTap: future ? null : () => setState(() => _selected = key),
-        child: Container(
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(11),
-            border: selected ? Border.all(color: Colors.white, width: 2.5) : null,
-          ),
-          alignment: Alignment.center,
-          child: Text('$d',
-              style: TextStyle(
-                  fontSize: 14, fontWeight: FontWeight.w600, color: fg)),
-        ),
-      ));
-    }
-
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 128),
-      children: [
-        const Text('History', style: TextStyle(fontSize: 34,
-            fontWeight: FontWeight.w700, letterSpacing: -0.9)),
-        const SizedBox(height: 6),
-        const Text('A clearer view of your consistency.', style: TextStyle(fontSize: 14, color: C.label2)),
-        const SizedBox(height: 28),
-        _filterDropdown(),
-        const SizedBox(height: 16),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            _navBtn(Icons.chevron_left, () => setState(() => _monthOffset--)),
-            Text(DateFormat('MMMM y').format(base),
-                style: const TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: -0.4)),
-            Opacity(
-              opacity: _monthOffset >= 0 ? 0 : 1,
-              child: _navBtn(Icons.chevron_right,
-                  _monthOffset >= 0 ? null : () => setState(() => _monthOffset++)),
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        Row(
-          children: ['S', 'M', 'T', 'W', 'T', 'F', 'S']
-              .map((d) => Expanded(
-                    child: Center(
-                      child: Text(d,
-                          style: const TextStyle(
-                              fontSize: 11, fontWeight: FontWeight.w600, color: C.label3)),
-                    ),
-                  ))
-              .toList(),
-        ),
-        const SizedBox(height: 8),
-        GridView.count(
-          crossAxisCount: 7,
-          mainAxisSpacing: 6,
-          crossAxisSpacing: 6,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          children: cells,
-        ),
-        const SizedBox(height: 22),
-        _detail(filterHabit, total),
-      ],
-    );
+    final now=store.now,data=store.data;
+    final month=DateTime(now.year,now.month+_offset,1);
+    final count=DateUtils.getDaysInMonth(month.year,month.month);
+    final selectedDate=DateTime.parse(_selected);
+    final selected=data.allHabits.where((h)=>h.on(_selected).scheduled(selectedDate)).toList();
+    return ListView(padding:const EdgeInsets.fromLTRB(24,24,24,132),children:[
+      const PageTitle('History','Every day tells part of your story.'),
+      Panel(child:Column(children:[
+        Row(children:[IconButton(tooltip:'Previous month',onPressed:()=>setState(()=>_offset--),icon:const Icon(Icons.chevron_left)),
+          Expanded(child:Text(DateFormat('MMMM y').format(month),textAlign:TextAlign.center,style:const TextStyle(fontSize:18,fontWeight:FontWeight.w600))),
+          IconButton(tooltip:'Next month',onPressed:_offset<0?()=>setState(()=>_offset++):null,icon:const Icon(Icons.chevron_right))]),gap,
+        Row(children:[for(final d in ['M','T','W','T','F','S','S'])Expanded(child:Text(d,textAlign:TextAlign.center,style:const TextStyle(color:C.label2,fontSize:11)))]),
+        const SizedBox(height:12),GridView.count(crossAxisCount:7,shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),mainAxisSpacing:6,crossAxisSpacing:6,
+          children:[for(var i=1;i<month.weekday;i++)const SizedBox(),for(var d=1;d<=count;d++)_day(DateTime(month.year,month.month,d))]),
+      ])),gap,
+      SectionLabel(DateFormat('EEEE, MMMM d').format(selectedDate)),
+      if(selected.isEmpty)const Panel(child:Text('No scheduled habits on this day.',style:TextStyle(color:C.label2))),
+      for(final original in selected)Builder(builder:(context){
+        final h=original.on(_selected),done=data.completed(original,_selected),entry=data.entry(h.id,_selected);
+        return Padding(padding:const EdgeInsets.only(bottom:10),child:Panel(child:Row(children:[Icon(done?Icons.check_circle_rounded:Icons.circle_outlined,color:done?C.green:C.label3,size:22),
+          const SizedBox(width:13),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(h.name),const SizedBox(height:5),
+            Text(h.kind=='quantity'?'${number(data.value(h.id,_selected))} / ${number((entry['target'] as num?)??h.target)} ${entry['unit']??h.unit}':done?'Completed':'Not logged',style:const TextStyle(color:C.label2,fontSize:12))]))])));
+      }),
+    ]);
   }
-
-  Widget _filterDropdown() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      decoration: BoxDecoration(color: C.card, borderRadius: BorderRadius.circular(12)),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: _filter,
-          isExpanded: true,
-          dropdownColor: C.card2,
-          style: const TextStyle(fontSize: 15, color: C.label),
-          items: [
-            const DropdownMenuItem(value: 'all', child: Text('All tasks')),
-            ...store.habits.map((h) => DropdownMenuItem(
-                value: h.id, child: Text('${h.emoji}  ${h.name}'))),
-          ],
-          onChanged: (v) => setState(() => _filter = v ?? 'all'),
-        ),
-      ),
-    );
+  Widget _day(DateTime d) {
+    final key=dayKey(d),data=store.data;
+    final future=key.compareTo(store.todayKey)>0;
+    final done=data.allHabits.where((h)=>data.completed(h,key)).length;
+    return Semantics(label:'${DateFormat('MMMM d').format(d)}, $done completed',selected:key==_selected,child:InkWell(onTap:future?null:()=>setState(()=>_selected=key),borderRadius:BorderRadius.circular(11),
+      child:Container(alignment:Alignment.center,decoration:BoxDecoration(color:done>0?const Color(0x332F8CFF):C.card2,borderRadius:BorderRadius.circular(11),border:key==_selected?Border.all(color:C.label):null),
+        child:Text('${d.day}',style:TextStyle(fontSize:13,color:future?C.label3:done>0?C.blue:C.label)))));
   }
-
-  Widget _navBtn(IconData icon, VoidCallback? onTap) => GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 34,
-          height: 34,
-          decoration: const BoxDecoration(color: C.card, shape: BoxShape.circle),
-          child: Icon(icon, color: C.blue, size: 22),
-        ),
-      );
-
-  Widget _detail(Habit? filterHabit, int total) {
-    final dayLog = store.log[_selected] ?? {};
-    final label =
-        DateFormat('EEEE, MMMM d').format(DateTime.parse(_selected));
-    final rows = <Widget>[];
-    final list = filterHabit != null ? [filterHabit] : store.habits;
-    for (var i = 0; i < list.length; i++) {
-      final h = list[i];
-      final ok = dayLog[h.id] == true;
-      rows.add(Container(
-        decoration: i != list.length - 1
-            ? const BoxDecoration(
-                border: Border(bottom: BorderSide(color: C.sep, width: 0.5)))
-            : null,
-        padding: const EdgeInsets.symmetric(vertical: 13),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('${h.emoji}  ${h.name}',
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-            Text(ok ? 'Done' : 'Missed',
-                style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: ok ? C.green : C.label3)),
-          ],
-        ),
-      ));
-    }
-    final score = filterHabit == null ? '${store.doneOn(_selected)}/$total' : '';
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(color: C.card, borderRadius: BorderRadius.circular(24)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(0, 14, 0, 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(label,
-                    style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w700, letterSpacing: -0.3)),
-                Text(score,
-                    style: const TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w600, color: C.label2)),
-              ],
-            ),
-          ),
-          ...rows,
-          const SizedBox(height: 6),
-        ],
-      ),
-    );
-  }
-}
-
-extension _FirstOrNull<E> on Iterable<E> {
-  E? get firstOrNull => isEmpty ? null : first;
 }

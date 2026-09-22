@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'config.dart';
@@ -6,7 +7,8 @@ import 'store.dart';
 import 'screens/auth_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/intro_screen.dart';
-import 'package:flutter/cupertino.dart';
+import 'screens/onboarding_screen.dart';
+import 'widgets/ui.dart';
 
 final store = Store();
 
@@ -34,6 +36,12 @@ class JoshApp extends StatelessWidget {
         splashFactory: NoSplash.splashFactory,
         highlightColor: Colors.transparent,
         dividerColor: C.sep,
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true, fillColor: C.card2,
+          contentPadding: const EdgeInsets.symmetric(horizontal:16,vertical:16),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+          labelStyle: const TextStyle(color:C.label2),
+        ),
         textSelectionTheme: const TextSelectionThemeData(cursorColor: C.blue),
         pageTransitionsTheme: const PageTransitionsTheme(builders: {
           TargetPlatform.android: CupertinoPageTransitionsBuilder(),
@@ -67,7 +75,24 @@ class Root extends StatelessWidget {
             body: Center(child: CircularProgressIndicator(color: C.blue)),
           );
         }
-        return store.user == null ? const AuthScreen() : const HomeScreen();
+        if (store.user == null) return const AuthScreen();
+        if (!store.accountReady) {
+          return Scaffold(body: SafeArea(child: Center(child: Padding(
+            padding: const EdgeInsets.all(28),
+            child: Column(mainAxisSize: MainAxisSize.min,children:[
+              if (store.syncError == null) const CircularProgressIndicator()
+              else const Icon(Icons.cloud_off_outlined,size:36,color:C.label2),
+              const SizedBox(height:20),
+              Text(store.syncError ?? 'Bringing your progress home…',textAlign:TextAlign.center),
+              if (store.syncError != null) ...[
+                const SizedBox(height:20),ActionButton('Try again',store.retry),
+                TextButton(onPressed:store.signOut,child:const Text('Sign out')),
+              ],
+            ]),
+          ))));
+        }
+        if (store.data.prefs['onboarded'] != true) return const OnboardingScreen();
+        return const HomeScreen();
       },
     );
   }

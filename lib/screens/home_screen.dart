@@ -6,6 +6,8 @@ import '../main.dart';
 import 'today_view.dart';
 import 'history_view.dart';
 import 'settings_view.dart';
+import 'insights_view.dart';
+import '../widgets/ui.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -15,22 +17,41 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _tab = 0;
+  int _lastRequest = -1;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    store.addListener(_notification);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _notification());
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    store.removeListener(_notification);
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) store.retryIfPending();
+    store.foreground(state == AppLifecycleState.resumed);
+  }
+
+  void _notification() {
+    if (!mounted || _lastRequest == store.openRequest) return;
+    _lastRequest = store.openRequest;
+    final id = store.openHabitId;
+    if (id == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() => _tab = 0);
+      final matches = store.habits.where((h) => h.id == id);
+      if (matches.isNotEmpty && matches.first.kind == 'quantity') {
+        logHabit(context, matches.first);
+      }
+    });
   }
 
   @override
@@ -42,7 +63,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         child: AnimatedBuilder(
           animation: store,
           builder: (context, _) => IndexedStack(index: _tab, children: [
-                  TodayView(), HistoryView(), SettingsView(),
+                  TodayView(), InsightsView(), HistoryView(), SettingsView(),
                 ]),
         ),
       ),
@@ -64,8 +85,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     border: Border.all(color: const Color(0x18FFFFFF))),
                   child: Row(children: [
                     _tabButton(0, Icons.radio_button_checked, 'Today'),
-                    _tabButton(1, Icons.calendar_today_outlined, 'History'),
-                    _tabButton(2, Icons.tune_rounded, 'Settings'),
+                    _tabButton(1, Icons.bar_chart_rounded, 'Insights'),
+                    _tabButton(2, Icons.calendar_today_outlined, 'History'),
+                    _tabButton(3, Icons.tune_rounded, 'Settings'),
                   ]),
                 ),
               ),

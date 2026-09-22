@@ -1,289 +1,94 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../config.dart';
 import '../main.dart';
 import '../store.dart';
+import '../widgets/ui.dart';
+import 'habit_editor.dart';
 
 class TodayView extends StatelessWidget {
   const TodayView({super.key});
-
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final s = store.sprint();
-    final pct = store.todayPct();
-    final done = store.doneOn(store.todayKey);
-
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 128),
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Today',
-                    style: const TextStyle(
-                        fontSize: 34, fontWeight: FontWeight.w700, letterSpacing: -0.9)),
-                Text(DateFormat('EEEE, MMMM d').format(now),
-                    style: const TextStyle(fontSize: 15, color: C.label2)),
-              ],
-            )),
-            const SizedBox(width: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 9),
-              decoration:
-                  BoxDecoration(color: C.card, borderRadius: BorderRadius.circular(100)),
-              child: Text('$done / ${store.habits.length}',
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-            ),
-          ],
-        ),
-        const SizedBox(height: 30),
-        Center(
-          child: SizedBox(
-            width: 208,
-            height: 208,
-            child: CustomPaint(
-              painter: _RingPainter(todayPct: pct, sprintPct: s.pct),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('${(pct * 100).round()}%',
-                        style: const TextStyle(
-                            fontSize: 46,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: -1.5)),
-                    const Text('TODAY',
-                        style: TextStyle(
-                            fontSize: 12,
-                            color: C.label3,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.2)),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 22),
-        _goalCard(s),
-        const SizedBox(height: 26),
-        const _SectionTitle('Daily tasks'),
-        const SizedBox(height: 8),
-        _taskGroup(),
-        const SizedBox(height: 26),
-        const _SectionTitle('This month'),
-        const SizedBox(height: 8),
-        _monthStrip(now),
-      ],
-    );
-  }
-
-  Widget _goalCard(Sprint s) {
-    final pct = (s.pct * 100).round();
-    final target =
-        DateFormat('MMMM d, y').format(DateTime.parse(store.goal.target));
-    return Container(
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
-      decoration: BoxDecoration(color: C.card, borderRadius: BorderRadius.circular(24)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(store.goal.label,
-                      style: const TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.w600, color: C.label2)),
-                  const SizedBox(height: 6),
-                  Text('${s.remaining} days left',
-                      style: const TextStyle(
-                          fontSize: 30, fontWeight: FontWeight.w700, letterSpacing: -0.8)),
-                  const SizedBox(height: 3),
-                  Text('Deadline · $target',
-                      style: const TextStyle(fontSize: 13, color: C.label3)),
-                ],
-              )),
-              const SizedBox(width: 12),
-              Text('$pct%',
-                  style: const TextStyle(
-                      fontSize: 17, fontWeight: FontWeight.w700, color: C.label)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(100),
-            child: LinearProgressIndicator(
-              value: s.pct,
-              minHeight: 6,
-              backgroundColor: const Color(0x3D78788C),
-              valueColor: const AlwaysStoppedAnimation(C.blue),
-            ),
-          ),
+    final now=store.now,data=store.data;
+    final due=data.due(now),left=data.remaining(now);
+    final completed=due.length-left.length;
+    final focus=List<Habit>.from(left)..sort((a,b)=>a.reminder.compareTo(b.reminder));
+    return RefreshIndicator(onRefresh:store.retry,color:C.blue,child:ListView(
+      physics:const AlwaysScrollableScrollPhysics(),padding:const EdgeInsets.fromLTRB(24,24,24,132),children:[
+        Row(children:[
+          Expanded(child:Text(DateFormat('EEEE, MMMM d').format(now).toUpperCase(),style:const TextStyle(color:C.label2,fontSize:11,letterSpacing:1.3))),
+          _syncChip(context),
+        ]),const SizedBox(height:22),
+        Text('${greeting(now)},\n${store.name.isEmpty?'Joshua':store.name}.',style:const TextStyle(fontSize:35,fontWeight:FontWeight.w600,letterSpacing:-1.4,height:1.15)),
+        const SizedBox(height:14),AnimatedSwitcher(duration:const Duration(milliseconds:300),
+          child:Text(focusQuote(data,now),key:ValueKey(focusQuote(data,now)),style:const TextStyle(color:C.label2,fontSize:15,height:1.6))),gap,
+        Panel(child:Column(children:[
+          ProgressRing(data.progress(now)),const SizedBox(height:10),
+          Text(due.isEmpty?'A little space for you':left.isEmpty?'A day well spent':'$completed of ${due.length} habits complete',
+            style:const TextStyle(fontSize:17,fontWeight:FontWeight.w600)),
+          const SizedBox(height:8),Text(due.isEmpty?'No habits due today.':left.isEmpty?'Your progress is worth a pause.':'Every small action counts.',style:const TextStyle(color:C.label2,fontSize:13)),
+          const SizedBox(height:22),const Divider(height:1),const SizedBox(height:18),
+          Row(children:[_stat('${data.streak(now)}','day active streak'),Container(height:32,width:1,color:C.sep),_stat('${data.week(now).done}','wins this week')]),
+        ])),gap,
+        if(focus.isNotEmpty)...[
+          const SectionLabel('Your next small win'),
+          Panel(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+            Row(children:[Icon(categoryIcon(focus.first.category),color:C.blue,size:22),const SizedBox(width:10),
+              Expanded(child:Text(focus.first.name,style:const TextStyle(fontSize:18,fontWeight:FontWeight.w600)))]),
+            const SizedBox(height:10),Text(_remaining(focus.first),style:const TextStyle(color:C.label2)),
+            const SizedBox(height:16),ActionButton(focus.first.kind=='quantity'?'Log progress':'Mark complete',()=>logHabit(context,focus.first)),
+          ])),gap,
         ],
-      ),
-    );
+        Row(children:[const Expanded(child:SectionLabel('Your rhythm')),TextButton(onPressed:()=>editHabit(context),child:const Text('+ Add'))]),
+        if(due.isEmpty) Panel(child:Column(children:[const Icon(Icons.spa_outlined,color:C.label2,size:30),gap,
+          const Text('Set a small intention for today.'),gap,ActionButton('Add a habit',()=>editHabit(context),secondary:true)])),
+        for(final h in due) Padding(padding:const EdgeInsets.only(bottom:10),child:_habit(context,h)),
+        if(data.habits.any((h)=>h.kind=='weekly')) ...[
+          const SectionLabel('Your weekly goals'),
+          for(final h in data.habits.where((h)=>h.kind=='weekly')) Padding(padding:const EdgeInsets.only(bottom:10),
+            child:Panel(child:Row(children:[Expanded(child:Text(h.name)),Text('${data.weekDone(h,now)} / ${h.weeklyTarget} days',style:const TextStyle(color:C.label2))]))),
+        ],
+        gap,Panel(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          const Text('THE BIGGER PICTURE',style:TextStyle(color:C.label2,fontSize:10,letterSpacing:1.4)),
+          const SizedBox(height:10),Text(data.goal['label'] as String? ?? 'Keep showing up',style:const TextStyle(fontSize:19,fontWeight:FontWeight.w500,height:1.4)),
+          const SizedBox(height:10),Text('Your target · ${data.goal['target']}',style:const TextStyle(color:C.label2,fontSize:12)),
+        ])),
+      ]));
   }
-
-  Widget _taskGroup() {
-    if (store.habits.isEmpty) {
-      return _card(const Padding(
-        padding: EdgeInsets.all(16),
-        child: Text('No tasks yet — add some in Settings',
-            style: TextStyle(color: C.label3)),
-      ));
-    }
-    final today = store.log[store.todayKey] ?? {};
-    return _card(Column(
-      children: [
-        for (int i = 0; i < store.habits.length; i++)
-          _taskRow(store.habits[i], today[store.habits[i].id] == true,
-              i != store.habits.length - 1),
-      ],
-    ));
+  Widget _stat(String value,String label)=>Expanded(child:Column(children:[Text(value,style:const TextStyle(fontSize:22,fontWeight:FontWeight.w600)),
+    const SizedBox(height:5),Text(label,style:const TextStyle(fontSize:11,color:C.label2),textAlign:TextAlign.center)]));
+  String _remaining(Habit h) {
+    if(h.kind=='weekly') return '${store.data.weekDone(h,store.now)} of ${h.weeklyTarget} days this week. One day at a time.';
+    if(h.kind=='quantity') return '${number((h.target-store.data.value(h.id,store.todayKey)).clamp(0,h.target))} ${h.unit} left for today.';
+    return 'A small promise to yourself. Ready when you are.';
   }
-
-  Widget _taskRow(Habit h, bool done, bool sep) {
-    const tint = C.card2;
-    return InkWell(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        store.toggle(h.id);
-      },
-      child: Container(
-        decoration: sep
-            ? const BoxDecoration(
-                border: Border(bottom: BorderSide(color: C.sep, width: 0.5)))
-            : null,
-        padding: const EdgeInsets.fromLTRB(16, 15, 16, 15),
-        child: Row(
-          children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration:
-                  BoxDecoration(color: tint, borderRadius: BorderRadius.circular(9)),
-              alignment: Alignment.center,
-              child: Text(h.emoji, style: const TextStyle(fontSize: 19)),
-            ),
-            const SizedBox(width: 13),
-            Expanded(
-              child: Text(h.name,
-                  style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: done ? C.label3 : C.label)),
-            ),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: 26,
-              height: 26,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: done ? C.green : Colors.transparent,
-                border: Border.all(
-                    color: done ? C.green : const Color(0x8078788C), width: 2),
-              ),
-              child: done
-                  ? const Icon(Icons.check, size: 15, color: Colors.white)
-                  : null,
-            ),
-          ],
-        ),
-      ),
-    );
+  Widget _habit(BuildContext context,Habit h) {
+    final done=store.data.completed(h,store.todayKey);
+    final value=store.data.value(h.id,store.todayKey);
+    return Semantics(button:true,label:'${h.name}, ${done?'completed':_remaining(h)}',child:Material(color:C.card,borderRadius:BorderRadius.circular(22),
+      child:InkWell(borderRadius:BorderRadius.circular(22),onTap:()=>logHabit(context,h),
+        child:Padding(padding:const EdgeInsets.all(17),child:Row(children:[
+          Container(width:42,height:42,decoration:BoxDecoration(color:C.card2,borderRadius:BorderRadius.circular(13)),child:Icon(categoryIcon(h.category),size:21,color:done?C.green:C.label2)),
+          const SizedBox(width:13),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+            Text(h.name,style:TextStyle(fontSize:16,fontWeight:FontWeight.w500,color:done?C.label2:C.label)),
+            const SizedBox(height:6),Text(h.kind=='quantity'?'${number(value)} / ${number(h.target)} ${h.unit}':h.kind=='weekly'?h.targetLabel:done?'Complete':'Tap to check in',style:const TextStyle(fontSize:12,color:C.label2)),
+            if(h.kind=='quantity') Padding(padding:const EdgeInsets.only(top:10),child:ClipRRect(borderRadius:BorderRadius.circular(4),
+              child:LinearProgressIndicator(value:(value/h.target).clamp(0,1).toDouble(),minHeight:3,backgroundColor:C.card2,color:done?C.green:C.blue))),
+          ])),
+          if(!done && h.remind && store.data.prefs['reminders']==true) IconButton(tooltip:'Remind me in 30 minutes',icon:const Icon(Icons.snooze_rounded,size:20,color:C.label2),onPressed:()async{
+            final ok=await store.reminders.snooze(h.id);
+            if(context.mounted)message(context,ok?'Snoozed for 30 minutes, respecting quiet hours.':'Enable notifications in Settings first.');
+          }),
+          const SizedBox(width:8),AnimatedSwitcher(duration:const Duration(milliseconds:220),child:Icon(done?Icons.check_circle_rounded:Icons.radio_button_unchecked,key:ValueKey(done),color:done?C.green:C.label3,size:26)),
+        ])))));
   }
-
-  Widget _monthStrip(DateTime now) {
-    final days = DateUtils.getDaysInMonth(now.year, now.month);
-    final total = store.habits.length;
-    return Wrap(
-      spacing: 6,
-      runSpacing: 6,
-      children: List.generate(days, (i) {
-        final key = DateFormat('yyyy-MM-dd')
-            .format(DateTime(now.year, now.month, i + 1));
-        final future = key.compareTo(store.todayKey) > 0;
-        Color c;
-        if (future) {
-          c = const Color(0x3878788C);
-        } else if (total == 0) {
-          c = const Color(0x4D78788C);
-        } else {
-          final ratio = store.doneOn(key) / total;
-          c = Color.lerp(C.card2, C.blue, ratio)!;
-        }
-        return Container(
-          width: 15,
-          height: 15,
-          decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(5)),
-        );
-      }),
-    );
-  }
-
-  Widget _card(Widget child) => Container(
-        decoration:
-            BoxDecoration(color: C.card, borderRadius: BorderRadius.circular(24)),
-        clipBehavior: Clip.antiAlias,
-        child: child,
-      );
-}
-
-class _SectionTitle extends StatelessWidget {
-  final String text;
-  const _SectionTitle(this.text);
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(left: 4),
-        child: Text(text,
-            style: const TextStyle(
-                fontSize: 13, fontWeight: FontWeight.w600, color: C.label2)),
-      );
-}
-
-class _RingPainter extends CustomPainter {
-  final double todayPct, sprintPct;
-  _RingPainter({required this.todayPct, required this.sprintPct});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final c = size.center(Offset.zero);
-    const start = -math.pi / 2;
-
-    void arc(double r, double w, Color track, Color fill, double pct) {
-      final rect = Rect.fromCircle(center: c, radius: r);
-      final tp = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = w
-        ..color = track;
-      canvas.drawArc(rect, 0, 2 * math.pi, false, tp);
-      if (pct > 0) {
-        final fp = Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = w
-          ..strokeCap = StrokeCap.round
-          ..color = fill;
-        canvas.drawArc(rect, start, 2 * math.pi * pct.clamp(0, 1), false, fp);
-      }
-    }
-
-    arc(91, 4, const Color(0xFF252528), C.label2, sprintPct);
-    arc(74, 10, const Color(0xFF252528),
-        todayPct >= 1 ? C.green : C.blue, todayPct);
-  }
-
-  @override
-  bool shouldRepaint(_RingPainter old) =>
-      old.todayPct != todayPct || old.sprintPct != sprintPct;
+  Widget _syncChip(BuildContext context)=>TextButton(onPressed:()=>showModalBottomSheet<void>(context:context,showDragHandle:true,backgroundColor:C.card,
+    builder:(_)=>SafeArea(child:Padding(padding:const EdgeInsets.all(24),child:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+      Text(store.syncLabel,style:const TextStyle(fontSize:23,fontWeight:FontWeight.w600)),gap,
+      Text(store.syncError??'Your changes are saved on this device and in your account.',style:const TextStyle(color:C.label2,height:1.5)),
+      if(store.pendingCount>0)Text('${store.pendingCount} changes waiting',style:const TextStyle(color:C.label2)),gap,
+      ActionButton('Retry sync',(){Navigator.pop(context);store.retry();}),
+    ])))),child:Row(mainAxisSize:MainAxisSize.min,children:[Icon(store.syncState==SyncState.saved?Icons.cloud_done_outlined:Icons.cloud_upload_outlined,size:15,color:store.syncState==SyncState.saved?C.label2:C.orange),
+      const SizedBox(width:5),Text(store.syncLabel,style:const TextStyle(fontSize:11,color:C.label2))]));
 }
