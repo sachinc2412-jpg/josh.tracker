@@ -118,10 +118,12 @@ class Store extends ChangeNotifier {
   int _ts() => _prefs.getInt(_kTs) ?? 0;
 
   Future<void> _persist({bool bump = true}) async {
+    notifyListeners(); // paint the change immediately
     await _prefs.setString(_kCache, jsonEncode(_stateJson()));
-    if (bump) await _prefs.setInt(_kTs, DateTime.now().millisecondsSinceEpoch);
-    notifyListeners();
-    if (bump) _push();
+    if (bump) {
+      await _prefs.setInt(_kTs, DateTime.now().millisecondsSinceEpoch);
+      _push();
+    }
   }
 
   // ---------- cloud sync (one JSON row per user, last-write-wins) ----------

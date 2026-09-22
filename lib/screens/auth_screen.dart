@@ -55,7 +55,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(18),
                   child: Image.asset('assets/icon-512.png',
-                      width: 68, height: 68, fit: BoxFit.contain),
+                      width: 68, height: 68, fit: BoxFit.cover),
                 ),
                 const SizedBox(height: 22),
                 const Text('Josh Tracker',
@@ -179,11 +179,81 @@ class _GoogleG extends StatelessWidget {
   const _GoogleG();
   @override
   Widget build(BuildContext context) {
-    // Simple multicolour G mark.
     return const SizedBox(
       width: 18,
       height: 18,
-      child: Icon(Icons.g_mobiledata, size: 24, color: Color(0xFF4285F4)),
+      child: CustomPaint(painter: _GoogleLogoPainter()),
     );
   }
+}
+
+class _GoogleLogoPainter extends CustomPainter {
+  const _GoogleLogoPainter();
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.width / 48.0;
+    final p = Paint()..style = PaintingStyle.fill;
+
+    // Blue
+    p.color = const Color(0xFF4285F4);
+    canvas.drawPath(_scaled(_blue, s), p);
+    // Green
+    p.color = const Color(0xFF34A853);
+    canvas.drawPath(_scaled(_green, s), p);
+    // Yellow
+    p.color = const Color(0xFFFBBC05);
+    canvas.drawPath(_scaled(_yellow, s), p);
+    // Red
+    p.color = const Color(0xFFEA4335);
+    canvas.drawPath(_scaled(_red, s), p);
+  }
+
+  Path _scaled(Path Function() build, double s) {
+    final m = Matrix4.identity()..scale(s, s);
+    return build().transform(m.storage);
+  }
+
+  static Path _blue() => Path()
+    ..moveTo(47.53, 24.55)
+    ..cubicTo(47.53, 22.98, 47.38, 21.46, 47.15, 20.0)
+    ..lineTo(24.0, 20.0)
+    ..lineTo(24.0, 29.02)
+    ..lineTo(37.19, 29.02)
+    ..cubicTo(36.61, 32.0, 34.9, 34.52, 32.36, 36.22)
+    ..lineTo(40.09, 42.22)
+    ..cubicTo(44.6, 38.04, 47.53, 31.86, 47.53, 24.55)
+    ..close();
+
+  static Path _green() => Path()
+    ..moveTo(24.0, 48.0)
+    ..cubicTo(30.6, 48.0, 36.14, 45.82, 40.19, 42.09)
+    ..lineTo(32.36, 36.22)
+    ..cubicTo(30.21, 37.67, 27.43, 38.52, 24.0, 38.52)
+    ..cubicTo(17.74, 38.52, 12.43, 34.3, 10.53, 28.61)
+    ..lineTo(2.55, 34.79)
+    ..cubicTo(6.51, 42.62, 14.62, 48.0, 24.0, 48.0)
+    ..close();
+
+  static Path _yellow() => Path()
+    ..moveTo(10.53, 28.59)
+    ..cubicTo(10.05, 27.14, 9.77, 25.6, 9.77, 24.0)
+    ..cubicTo(9.77, 22.4, 10.04, 20.86, 10.53, 19.41)
+    ..lineTo(2.55, 13.22)
+    ..cubicTo(0.92, 16.46, 0.0, 20.12, 0.0, 24.0)
+    ..cubicTo(0.0, 27.88, 0.92, 31.54, 2.55, 34.79)
+    ..lineTo(10.53, 28.59)
+    ..close();
+
+  static Path _red() => Path()
+    ..moveTo(24.0, 9.5)
+    ..cubicTo(27.54, 9.5, 30.71, 10.72, 33.21, 13.1)
+    ..lineTo(40.06, 6.25)
+    ..cubicTo(35.9, 2.38, 30.47, 0.0, 24.0, 0.0)
+    ..cubicTo(14.62, 0.0, 6.51, 5.38, 2.55, 13.22)
+    ..lineTo(10.53, 19.41)
+    ..cubicTo(12.43, 13.72, 17.74, 9.5, 24.0, 9.5)
+    ..close();
+
+  @override
+  bool shouldRepaint(_) => false;
 }

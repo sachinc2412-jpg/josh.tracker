@@ -43,17 +43,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
                 child: _segmented(),
               ),
-              Expanded(
-                child: IndexedStack(
-                  index: _tab,
-                  children: const [TodayView(), HistoryView(), SettingsView()],
-                ),
-              ),
+              Expanded(child: _body()),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Widget _body() {
+    switch (_tab) {
+      case 1:
+        return const HistoryView();
+      case 2:
+        return const SettingsView();
+      default:
+        return const TodayView();
+    }
   }
 
   Widget _segmented() {
