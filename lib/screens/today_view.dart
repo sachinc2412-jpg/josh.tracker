@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../config.dart';
 import '../main.dart';
@@ -16,36 +17,37 @@ class TodayView extends StatelessWidget {
     final done = store.doneOn(store.todayKey);
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 48),
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 128),
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Column(
+            Expanded(child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(DateFormat('EEEE').format(now),
+                Text('Today',
                     style: const TextStyle(
                         fontSize: 34, fontWeight: FontWeight.w700, letterSpacing: -0.9)),
-                Text(DateFormat('MMMM d').format(now),
+                Text(DateFormat('EEEE, MMMM d').format(now),
                     style: const TextStyle(fontSize: 15, color: C.label2)),
               ],
-            ),
+            )),
+            const SizedBox(width: 12),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 9),
               decoration:
                   BoxDecoration(color: C.card, borderRadius: BorderRadius.circular(100)),
-              child: Text('🔥 $done/${store.habits.length}',
+              child: Text('$done / ${store.habits.length}',
                   style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
             ),
           ],
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 30),
         Center(
           child: SizedBox(
-            width: 180,
-            height: 180,
+            width: 208,
+            height: 208,
             child: CustomPaint(
               painter: _RingPainter(todayPct: pct, sprintPct: s.pct),
               child: Center(
@@ -54,7 +56,7 @@ class TodayView extends StatelessWidget {
                   children: [
                     Text('${(pct * 100).round()}%',
                         style: const TextStyle(
-                            fontSize: 44,
+                            fontSize: 46,
                             fontWeight: FontWeight.w700,
                             letterSpacing: -1.5)),
                     const Text('TODAY',
@@ -89,7 +91,7 @@ class TodayView extends StatelessWidget {
         DateFormat('MMMM d, y').format(DateTime.parse(store.goal.target));
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
-      decoration: BoxDecoration(color: C.card, borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(color: C.card, borderRadius: BorderRadius.circular(24)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -97,10 +99,10 @@ class TodayView extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
+              Expanded(child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('🎯 ${store.goal.label}',
+                  Text(store.goal.label,
                       style: const TextStyle(
                           fontSize: 14, fontWeight: FontWeight.w600, color: C.label2)),
                   const SizedBox(height: 6),
@@ -111,7 +113,8 @@ class TodayView extends StatelessWidget {
                   Text('Deadline · $target',
                       style: const TextStyle(fontSize: 13, color: C.label3)),
                 ],
-              ),
+              )),
+              const SizedBox(width: 12),
               Text('$pct%',
                   style: const TextStyle(
                       fontSize: 17, fontWeight: FontWeight.w700, color: C.label)),
@@ -124,7 +127,7 @@ class TodayView extends StatelessWidget {
               value: s.pct,
               minHeight: 6,
               backgroundColor: const Color(0x3D78788C),
-              valueColor: const AlwaysStoppedAnimation(C.indigo),
+              valueColor: const AlwaysStoppedAnimation(C.blue),
             ),
           ),
         ],
@@ -151,9 +154,12 @@ class TodayView extends StatelessWidget {
   }
 
   Widget _taskRow(Habit h, bool done, bool sep) {
-    final tint = C.tileTints[h.id.hashCode.abs() % C.tileTints.length];
+    const tint = C.card2;
     return InkWell(
-      onTap: () => store.toggle(h.id),
+      onTap: () {
+        HapticFeedback.selectionClick();
+        store.toggle(h.id);
+      },
       child: Container(
         decoration: sep
             ? const BoxDecoration(
@@ -215,7 +221,7 @@ class TodayView extends StatelessWidget {
           c = const Color(0x4D78788C);
         } else {
           final ratio = store.doneOn(key) / total;
-          c = HSLColor.fromAHSL(1, 120 * ratio, 0.72, 0.48).toColor();
+          c = Color.lerp(C.card2, C.blue, ratio)!;
         }
         return Container(
           width: 15,
@@ -228,7 +234,7 @@ class TodayView extends StatelessWidget {
 
   Widget _card(Widget child) => Container(
         decoration:
-            BoxDecoration(color: C.card, borderRadius: BorderRadius.circular(20)),
+            BoxDecoration(color: C.card, borderRadius: BorderRadius.circular(24)),
         clipBehavior: Clip.antiAlias,
         child: child,
       );
@@ -272,8 +278,8 @@ class _RingPainter extends CustomPainter {
       }
     }
 
-    arc(72, 5, const Color(0x3378788C), C.indigo, sprintPct);
-    arc(56, 14, const Color(0x3378788C),
+    arc(91, 4, const Color(0xFF252528), C.label2, sprintPct);
+    arc(74, 10, const Color(0xFF252528),
         todayPct >= 1 ? C.green : C.blue, todayPct);
   }
 

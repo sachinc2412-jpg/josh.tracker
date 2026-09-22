@@ -42,8 +42,13 @@ class _SettingsViewState extends State<SettingsView> {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 48),
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 128),
       children: [
+        const Text('Settings', style: TextStyle(fontSize: 34,
+            fontWeight: FontWeight.w700, letterSpacing: -0.9)),
+        const SizedBox(height: 6),
+        const Text('Make room for what matters.', style: TextStyle(fontSize: 14, color: C.label2)),
+        const SizedBox(height: 28),
         _title('Goal'),
         _card(Column(children: [
           _editRow('Goal name', store.goal.label,
@@ -71,9 +76,9 @@ class _SettingsViewState extends State<SettingsView> {
         const SizedBox(height: 26),
         _title('Export'),
         _card(Column(children: [
-          _exportRow('📄  Download report (CSV)',
+          _exportRow('Download report (CSV)',
               () => _share(store.exportCsv(), 'josh-tracker-${store.todayKey}.csv')),
-          _exportRow('💾  Full backup (JSON)',
+          _exportRow('Full backup (JSON)',
               () => _share(store.exportJson(), 'josh-tracker-${store.todayKey}.json'),
               last: true),
         ])),
@@ -102,7 +107,7 @@ class _SettingsViewState extends State<SettingsView> {
   Widget _addCard() => Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: C.card, borderRadius: BorderRadius.circular(20)),
+        decoration: BoxDecoration(color: C.card, borderRadius: BorderRadius.circular(24)),
         child: Column(children: [
           Row(children: [
             SizedBox(width: 56, child: _input(_newEmoji, '😀', center: true)),
@@ -136,7 +141,7 @@ class _SettingsViewState extends State<SettingsView> {
 
   Widget _manageRow(int i) {
     final h = store.habits[i];
-    final tint = C.tileTints[h.id.hashCode.abs() % C.tileTints.length];
+    const tint = C.card2;
     return Container(
       decoration: i != store.habits.length - 1
           ? const BoxDecoration(border: Border(bottom: BorderSide(color: C.sep, width: 0.5)))
@@ -244,7 +249,7 @@ class _SettingsViewState extends State<SettingsView> {
       );
 
   Widget _card(Widget child) => Container(
-        decoration: BoxDecoration(color: C.card, borderRadius: BorderRadius.circular(20)),
+        decoration: BoxDecoration(color: C.card, borderRadius: BorderRadius.circular(24)),
         clipBehavior: Clip.antiAlias,
         child: child,
       );

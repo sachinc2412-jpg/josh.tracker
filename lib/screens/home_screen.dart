@@ -1,4 +1,6 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../config.dart';
 import '../main.dart';
 import 'today_view.dart';
@@ -34,65 +36,70 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBody: true,
       body: SafeArea(
+        bottom: false,
         child: AnimatedBuilder(
           animation: store,
-          builder: (context, _) => Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-                child: _segmented(),
+          builder: (context, _) => IndexedStack(index: _tab, children: [
+                  TodayView(), HistoryView(), SettingsView(),
+                ]),
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(24, 8, 24, 12),
+        child: Center(
+          heightFactor: 1,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(28),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xE61C1C20),
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(color: const Color(0x18FFFFFF))),
+                  child: Row(children: [
+                    _tabButton(0, Icons.radio_button_checked, 'Today'),
+                    _tabButton(1, Icons.calendar_today_outlined, 'History'),
+                    _tabButton(2, Icons.tune_rounded, 'Settings'),
+                  ]),
+                ),
               ),
-              Expanded(child: _body()),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _body() {
-    switch (_tab) {
-      case 1:
-        return HistoryView();
-      case 2:
-        return SettingsView();
-      default:
-        return TodayView();
-    }
-  }
-
-  Widget _segmented() {
-    const labels = ['Today', 'History', 'Settings'];
-    return Container(
-      padding: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        color: C.card,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: List.generate(3, (i) {
-          final active = i == _tab;
-          return Expanded(
-            child: GestureDetector(
-              onTap: () => setState(() => _tab = i),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                decoration: BoxDecoration(
-                  color: active ? C.card2 : Colors.transparent,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                alignment: Alignment.center,
-                child: Text(labels[i],
-                    style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: active ? C.label : C.label2)),
-              ),
-            ),
-          );
-        }),
+  Widget _tabButton(int index, IconData icon, String label) {
+    final selected = index == _tab;
+    return Expanded(
+      child: Semantics(
+        selected: selected,
+        child: TextButton(
+          onPressed: () {
+            if (_tab == index) return;
+            HapticFeedback.selectionClick();
+            setState(() => _tab = index);
+          },
+          style: TextButton.styleFrom(
+            minimumSize: const Size(48, 56),
+            foregroundColor: selected ? C.label : C.label2,
+            backgroundColor: selected ? const Color(0x14FFFFFF) : Colors.transparent,
+            padding: const EdgeInsets.symmetric(vertical: 9),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22))),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 21),
+            const SizedBox(height: 5),
+            Text(label, style: TextStyle(fontSize: 11,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w400)),
+          ]),
+        ),
       ),
     );
   }

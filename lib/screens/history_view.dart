@@ -17,6 +17,9 @@ class _HistoryViewState extends State<HistoryView> {
 
   @override
   Widget build(BuildContext context) {
+    if (_filter != 'all' && !store.habits.any((h) => h.id == _filter)) {
+      _filter = 'all';
+    }
     final now = DateTime.now();
     final base = DateTime(now.year, now.month + _monthOffset, 1);
     final days = DateUtils.getDaysInMonth(base.year, base.month);
@@ -70,8 +73,13 @@ class _HistoryViewState extends State<HistoryView> {
     }
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 48),
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 128),
       children: [
+        const Text('History', style: TextStyle(fontSize: 34,
+            fontWeight: FontWeight.w700, letterSpacing: -0.9)),
+        const SizedBox(height: 6),
+        const Text('A clearer view of your consistency.', style: TextStyle(fontSize: 14, color: C.label2)),
+        const SizedBox(height: 28),
         _filterDropdown(),
         const SizedBox(height: 16),
         Row(
@@ -178,7 +186,7 @@ class _HistoryViewState extends State<HistoryView> {
     final score = filterHabit == null ? '${store.doneOn(_selected)}/$total' : '';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(color: C.card, borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(color: C.card, borderRadius: BorderRadius.circular(24)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

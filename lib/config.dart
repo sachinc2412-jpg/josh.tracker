@@ -14,12 +14,12 @@ class Config {
 // iOS-style dark tokens.
 class C {
   static const bg = Color(0xFF000000);
-  static const card = Color(0xFF1C1C1E);
-  static const card2 = Color(0xFF2C2C2E);
-  static const sep = Color(0x8C545458);
+  static const card = Color(0xFF171719);
+  static const card2 = Color(0xFF232326);
+  static const sep = Color(0x26FFFFFF);
   static const label = Color(0xFFFFFFFF);
-  static const label2 = Color(0x99EBEBF5);
-  static const label3 = Color(0x4DEBEBF5);
+  static const label2 = Color(0xFFAAAAAF);
+  static const label3 = Color(0xFF87878F);
   static const blue = Color(0xFF0A84FF);
   static const green = Color(0xFF30D158);
   static const red = Color(0xFFFF453A);

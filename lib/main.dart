@@ -5,6 +5,8 @@ import 'config.dart';
 import 'store.dart';
 import 'screens/auth_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/intro_screen.dart';
+import 'package:flutter/cupertino.dart';
 
 final store = Store();
 
@@ -29,6 +31,14 @@ class JoshApp extends StatelessWidget {
       title: 'Josh Tracker',
       debugShowCheckedModeBanner: false,
       theme: base.copyWith(
+        splashFactory: NoSplash.splashFactory,
+        highlightColor: Colors.transparent,
+        dividerColor: C.sep,
+        textSelectionTheme: const TextSelectionThemeData(cursorColor: C.blue),
+        pageTransitionsTheme: const PageTransitionsTheme(builders: {
+          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        }),
         scaffoldBackgroundColor: C.bg,
         colorScheme: base.colorScheme.copyWith(
           surface: C.bg,
@@ -39,7 +49,7 @@ class JoshApp extends StatelessWidget {
           displayColor: C.label,
         ),
       ),
-      home: const Root(),
+      home: const IntroScreen(child: Root()),
     );
   }
 }

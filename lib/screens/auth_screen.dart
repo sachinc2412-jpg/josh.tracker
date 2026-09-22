@@ -8,7 +8,32 @@ class AuthScreen extends StatefulWidget {
   State<AuthScreen> createState() => _AuthScreenState();
 }
 
-class _AuthScreenState extends State<AuthScreen> {
+class _AuthScreenState extends State<AuthScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _entrance = AnimationController(
+    vsync: this, duration: const Duration(milliseconds: 1200));
+  bool _started = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    if (MediaQuery.of(context).disableAnimations) {
+      _entrance.value = 1;
+    } else {
+      _entrance.forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _entrance.dispose();
+    _email.dispose();
+    _pass.dispose();
+    super.dispose();
+  }
+
   final _email = TextEditingController();
   final _pass = TextEditingController();
   bool _showEmail = false;
@@ -43,74 +68,146 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final panelTheme = ThemeData.dark(useMaterial3: true);
     return Scaffold(
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 360),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(18),
-                  child: Image.asset('assets/icon-512.png',
-                      width: 68, height: 68, fit: BoxFit.contain),
-                ),
-                const SizedBox(height: 22),
-                const Text('Josh Tracker',
-                    style: TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -0.8)),
-                const SizedBox(height: 6),
-                const Text('Track the sprint. Sync everywhere.',
-                    style: TextStyle(fontSize: 15, color: C.label2)),
-                const SizedBox(height: 28),
-                _googleBtn(),
-                if (_showEmail) ...[
-                  const SizedBox(height: 20),
-                  _divider(),
-                  const SizedBox(height: 14),
-                  _field(_email, 'Email',
-                      keyboard: TextInputType.emailAddress),
-                  const SizedBox(height: 12),
-                  _field(_pass, 'Password', obscure: true),
-                  const SizedBox(height: 12),
-                  _primaryBtn(_signup ? 'Create account' : 'Sign in', _emailSubmit),
-                  const SizedBox(height: 14),
-                  Center(
-                    child: TextButton(
-                      onPressed: () => setState(() => _signup = !_signup),
-                      child: Text(
-                        _signup ? 'Have an account? Sign in' : 'New here? Create account',
-                        style: const TextStyle(color: C.blue),
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: LayoutBuilder(builder: (context, constraints) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight:
+                  (constraints.maxHeight - 36).clamp(0.0, double.infinity)),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      FadeTransition(
+                        opacity: CurvedAnimation(parent: _entrance,
+                            curve: const Interval(0, 0.65, curve: Curves.easeOut)),
+                        child: Column(children: [
+                          Row(mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Image.asset('assets/icon-512.png', width: 38, height: 38),
+                              const SizedBox(width: 10),
+                              const Text('Josh Tracker', style: TextStyle(
+                                  color: Colors.white, fontSize: 19,
+                                  fontWeight: FontWeight.w700, letterSpacing: -0.5)),
+                            ]),
+                          const SizedBox(height: 24),
+                          const Text('Every day. A little better.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.white, fontSize: 34,
+                              fontWeight: FontWeight.w600, letterSpacing: -1.1)),
+                          const SizedBox(height: 10),
+                          const Text('Your habits. Your pace. Your progress.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Color(0xFF969AA7),
+                              fontSize: 14, height: 1.6)),
+                        ]),
                       ),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 12),
-                Center(
-                  child: TextButton(
-                    onPressed: () => setState(() => _showEmail = !_showEmail),
-                    child: Text(_showEmail ? 'Hide email sign-in' : 'Use email instead',
-                        style: const TextStyle(color: C.label2)),
+                      const SizedBox(height: 36),
+                      FadeTransition(
+                        opacity: CurvedAnimation(parent: _entrance,
+                            curve: const Interval(0.2, 1, curve: Curves.easeOut)),
+                        child: SlideTransition(
+                          position: Tween<Offset>(begin: const Offset(0, 0.22),
+                            end: Offset.zero).animate(CurvedAnimation(
+                              parent: _entrance,
+                              curve: const Interval(0.15, 1, curve: Curves.easeOutCubic))),
+                          child: Theme(
+                            data: panelTheme.copyWith(
+                              colorScheme: panelTheme.colorScheme.copyWith(primary: C.blue)),
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(24),
+                              decoration: BoxDecoration(
+                                color: C.card,
+                                border: Border.all(color: const Color(0x18FFFFFF)),
+                                borderRadius: BorderRadius.circular(30)),
+                              child: DefaultTextStyle(
+                                style: const TextStyle(color: C.label, fontSize: 14),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    Row(children: [
+                                      Expanded(child: _modeTab('Sign in', false)),
+                                      const SizedBox(width: 8),
+                                      Expanded(child: _modeTab('Sign up', true)),
+                                    ]),
+                                    const SizedBox(height: 24),
+                                    Text(_signup ? 'Make it a habit.' : 'Welcome back.',
+                                      style: const TextStyle(fontSize: 24,
+                                        fontWeight: FontWeight.w700, letterSpacing: -0.7)),
+                                    const SizedBox(height: 7),
+                                    Text(_signup ? 'Small habits. Meaningful progress.'
+                                        : 'Your goals are right where you left them.',
+                                      style: const TextStyle(color: C.label2,
+                                        height: 1.5, fontSize: 13)),
+                                    const SizedBox(height: 24),
+                                    _googleBtn(),
+                                    const SizedBox(height: 12),
+                                    TextButton(
+                                      onPressed: _busy ? null : () =>
+                                          setState(() => _showEmail = !_showEmail),
+                                      child: Text(_showEmail ? 'Hide email form' : 'Continue with email',
+                                        style: const TextStyle(color: C.label2))),
+                                    if (_showEmail) ...[
+                                      const SizedBox(height: 8),
+                                      _field(_email, 'Email', keyboard: TextInputType.emailAddress),
+                                      const SizedBox(height: 12),
+                                      _field(_pass, 'Password', obscure: true),
+                                      const SizedBox(height: 16),
+                                      _primaryBtn(_signup ? 'Create account' : 'Sign in', _emailSubmit),
+                                    ],
+                                    if (_busy) const Padding(
+                                      padding: EdgeInsets.only(top: 16),
+                                      child: Center(child: SizedBox(width: 18, height: 18,
+                                        child: CircularProgressIndicator(strokeWidth: 2)))),
+                                    if (_msg != null) Padding(
+                                      padding: const EdgeInsets.only(top: 14),
+                                      child: Text(_msg!, textAlign: TextAlign.center,
+                                        style: TextStyle(fontSize: 13,
+                                          color: _msgErr ? C.red
+                                              : C.green))),
+                                    const SizedBox(height: 20),
+                                    const Text('Your progress, synced across devices.',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(color: C.label2, fontSize: 11)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                if (_msg != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(_msg!,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            fontSize: 13,
-                            color: _msgErr ? C.red : C.green)),
-                  ),
-              ],
+              ),
             ),
-          ),
-        ),
+          );
+        }),
       ),
+    );
+  }
+
+  Widget _modeTab(String label, bool signup) {
+    final selected = _signup == signup;
+    return TextButton(
+      onPressed: _busy ? null : () => setState(() {
+        _signup = signup;
+        _msg = null;
+        if (signup) _showEmail = true;
+      }),
+      style: TextButton.styleFrom(
+        backgroundColor: selected ? C.card2 : Colors.transparent,
+        foregroundColor: selected ? C.label : C.label2,
+        padding: const EdgeInsets.symmetric(vertical: 13),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+      child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
     );
   }
 
@@ -120,7 +217,7 @@ class _AuthScreenState extends State<AuthScreen> {
       child: ElevatedButton.icon(
         onPressed: _busy ? null : _google,
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white,
+          backgroundColor: const Color(0xFFF5F5F7),
           foregroundColor: const Color(0xFF1C1C1E),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           elevation: 0,
@@ -132,14 +229,6 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  Widget _divider() => Row(children: const [
-        Expanded(child: Divider(color: C.sep, height: 1)),
-        Padding(
-            padding: EdgeInsets.symmetric(horizontal: 12),
-            child: Text('or', style: TextStyle(color: C.label3, fontSize: 13))),
-        Expanded(child: Divider(color: C.sep, height: 1)),
-      ]);
-
   Widget _field(TextEditingController c, String hint,
       {bool obscure = false, TextInputType? keyboard}) {
     return TextField(
@@ -149,7 +238,7 @@ class _AuthScreenState extends State<AuthScreen> {
       style: const TextStyle(color: C.label, fontSize: 16),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(color: C.label3),
+        hintStyle: const TextStyle(color: C.label2),
         filled: true,
         fillColor: C.card2,
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
