@@ -68,21 +68,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
       ),
       bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(24, 8, 24, 12),
+        minimum:  EdgeInsets.fromLTRB(24, 8, 24, 12),
         child: Center(
           heightFactor: 1,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 440),
+            constraints:  BoxConstraints(maxWidth: 440),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(28),
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
                 child: Container(
-                  padding: const EdgeInsets.all(6),
+                  padding:  EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: const Color(0xE61C1C20),
+                    color: C.card.withOpacity(0.94),
                     borderRadius: BorderRadius.circular(28),
-                    border: Border.all(color: const Color(0x18FFFFFF))),
+                    border: Border.all(color: C.sep)),
                   child: Row(children: [
                     _tabButton(0, Icons.radio_button_checked, 'Today'),
                     _tabButton(1, Icons.bar_chart_rounded, 'Insights'),
@@ -110,14 +110,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             setState(() => _tab = index);
           },
           style: TextButton.styleFrom(
-            minimumSize: const Size(48, 56),
+            minimumSize:  Size(48, 56),
             foregroundColor: selected ? C.label : C.label2,
-            backgroundColor: selected ? const Color(0x14FFFFFF) : Colors.transparent,
-            padding: const EdgeInsets.symmetric(vertical: 9),
+            backgroundColor: selected ? C.card2 : Colors.transparent,
+            padding:  EdgeInsets.symmetric(vertical: 9),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22))),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Icon(icon, size: 21),
-            const SizedBox(height: 5),
+             SizedBox(height: 5),
             Text(label, style: TextStyle(fontSize: 11,
                 fontWeight: selected ? FontWeight.w600 : FontWeight.w400)),
           ]),

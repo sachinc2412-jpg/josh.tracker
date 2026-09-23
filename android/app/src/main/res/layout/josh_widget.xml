@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/widget_root" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="20dp" android:background="@drawable/widget_dark">
+    <TextView android:id="@+id/widget_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Josh Tracker" android:textSize="21sp" android:textStyle="bold" android:textColor="#FFFFFF" android:maxLines="1" android:ellipsize="end" />
+    <TextView android:id="@+id/widget_summary" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="Open your tracker" android:textSize="12sp" android:textColor="#AAAAAF" />
+    <ProgressBar android:id="@+id/widget_progress" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent" android:layout_height="4dp" android:layout_marginTop="12dp" android:layout_marginBottom="8dp" android:max="100" android:progressTint="#0A84FF" android:progressBackgroundTint="#777777" />
+    <TextView android:id="@+id/widget_habit_1" android:layout_width="match_parent" android:layout_height="40dp" android:gravity="center_vertical" android:textSize="14sp" android:maxLines="1" android:ellipsize="end" />
+    <TextView android:id="@+id/widget_habit_2" android:layout_width="match_parent" android:layout_height="40dp" android:gravity="center_vertical" android:textSize="14sp" android:maxLines="1" android:ellipsize="end" />
+    <TextView android:id="@+id/widget_habit_3" android:layout_width="match_parent" android:layout_height="40dp" android:gravity="center_vertical" android:textSize="14sp" android:maxLines="1" android:ellipsize="end" />
+    <TextView android:id="@+id/widget_footer" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:textSize="10sp" android:textColor="#AAAAAF" android:text="Open tracker" />
+</LinearLayout>

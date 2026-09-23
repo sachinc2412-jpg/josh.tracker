@@ -1,3 +1,4 @@
+-- V3 upgrade: rerunnable; preserves all existing V2 rows.
 -- Run once in your existing Supabase project's SQL Editor.
 -- Preserves tracker_state as a read-only migration source and backup.
 -- State and deduplication records are isolated by auth.uid().

@@ -26,11 +26,11 @@ object ReminderEngine {
     private const val CHANNEL = "josh_habits_v2"
     private const val SUMMARY = "__summary"
     private fun prefs(c: Context) = c.getSharedPreferences("josh_reminders_v2", Context.MODE_PRIVATE)
-    private fun snapshot(c: Context) = JSONObject(prefs(c).getString("snapshot", "{}") ?: "{}")
-    private fun state(c: Context) = snapshot(c).optJSONObject("state") ?: JSONObject()
+    fun snapshot(c: Context) = JSONObject(prefs(c).getString("snapshot", "{}") ?: "{}")
+    fun state(c: Context) = snapshot(c).optJSONObject("state") ?: JSONObject()
     private fun settings(c: Context) = state(c).optJSONObject("prefs") ?: JSONObject()
     private fun enabled(c: Context): Boolean = !snapshot(c).isNull("user") && snapshot(c).optString("user").isNotEmpty() && settings(c).optBoolean("reminders")
-    private fun habits(s: JSONObject): List<JSONObject> {
+    fun habits(s: JSONObject): List<JSONObject> {
         val map = s.optJSONObject("habits") ?: return emptyList()
         return map.keys().asSequence().mapNotNull { map.optJSONObject(it) }.filter { it.isNull("archived") }.toList()
     }
@@ -78,7 +78,7 @@ object ReminderEngine {
         ReminderTimes.isQuiet(time, p.optInt("quietStart",1320), p.optInt("quietEnd",480))
     private fun afterQuiet(time: LocalDateTime, p: JSONObject): LocalDateTime =
         ReminderTimes.afterQuiet(time, p.optInt("quietStart",1320), p.optInt("quietEnd",480))
-    private fun done(s: JSONObject, h: JSONObject, day: LocalDate): Boolean {
+    fun done(s: JSONObject, h: JSONObject, day: LocalDate): Boolean {
         val entry=s.optJSONObject("log")?.optJSONObject(day.toString())?.optJSONObject(h.optString("id")) ?: return false
         val target=entry.optDouble("target",if(h.optString("kind")=="quantity")h.optDouble("target",1.0)else 1.0)
         return entry.optDouble("value",0.0)>=target && target>0
@@ -86,17 +86,54 @@ object ReminderEngine {
     private fun weekDone(s: JSONObject,h: JSONObject,day: LocalDate): Int {
         var d=day.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
         var count=0
-        while(!d.isAfter(day)){ if(done(s,h,d))count++; d=d.plusDays(1) }
+        while(!d.isAfter(day)){ if(eligible(s,h,d) && done(s,h,d))count++; d=d.plusDays(1) }
         return count
     }
-    private fun due(s: JSONObject,h: JSONObject,day: LocalDate): Boolean {
-        if(!h.isNull("archived"))return false
-        if(day.toString()<h.optString("created","1970-01-01"))return false
-        if(h.optString("kind")=="weekly")return weekDone(s,h,day)<h.optInt("weeklyTarget",4) && !done(s,h,day)
-        val days=h.optJSONArray("weekdays") ?: JSONArray("[1,2,3,4,5,6,7]")
-        val scheduled=(0 until days.length()).any{days.optInt(it)==day.dayOfWeek.value}
-        return scheduled && !done(s,h,day)
+    fun rest(s: JSONObject,day: LocalDate): Boolean {
+        val override=s.optJSONObject("restDays")?.optJSONObject(day.toString())
+        if(override?.has("rest")==true)return override.optBoolean("rest")
+        val p=s.optJSONObject("prefs") ?: JSONObject()
+        val versions=p.optJSONArray("restVersions") ?: JSONArray()
+        var days=JSONArray()
+        if(versions.length()==0 && day.toString()>=p.optString("restFrom","1970-01-01")) days=p.optJSONArray("restWeekdays") ?: JSONArray()
+        for(i in 0 until versions.length()) {
+            val v=versions.getJSONObject(i)
+            if(day.toString()>=v.optString("from"))days=v.optJSONArray("days") ?: JSONArray()
+        }
+        return (0 until days.length()).any{days.optInt(it)==day.dayOfWeek.value}
     }
+    private fun on(h: JSONObject,day: LocalDate): JSONObject {
+        val result=JSONObject(h.toString())
+        val versions=h.optJSONArray("versions") ?: JSONArray()
+        for(i in 0 until versions.length()) {
+            val v=versions.getJSONObject(i)
+            if(day.toString()>=v.optString("from")) {
+                for(key in v.keys()) {
+                    if(key!="pauses" && key!="archived" && key!="id")result.put(key,v.get(key))
+                }
+            }
+        }
+        return result
+    }
+    fun eligible(s: JSONObject,h: JSONObject,day: LocalDate): Boolean {
+        val current=on(h,day)
+        if(!h.isNull("archived") && day.toString()>=h.optString("archived"))return false
+        if(day.toString()<h.optString("created","1970-01-01") || rest(s,day))return false
+        val pauses=h.optJSONArray("pauses") ?: JSONArray()
+        for(i in 0 until pauses.length()) {
+            val p=pauses.getJSONObject(i)
+            if(day.toString()>=p.optString("start") && day.toString()<=p.optString("end"))return false
+        }
+        if(current.optString("kind")=="weekly")return true
+        val days=current.optJSONArray("weekdays") ?: JSONArray("[1,2,3,4,5,6,7]")
+        return (0 until days.length()).any{days.optInt(it)==day.dayOfWeek.value}
+    }
+    private fun target(s: JSONObject,h: JSONObject,day: LocalDate): Int {
+        val start=day.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+        return minOf(h.optInt("weeklyTarget",4),(0L..6L).count{eligible(s,h,start.plusDays(it))})
+    }
+    fun due(s: JSONObject,h: JSONObject,day: LocalDate): Boolean =
+        eligible(s,h,day) && !done(s,h,day) && (h.optString("kind")!="weekly" || weekDone(s,h,day)<target(s,h,day))
     private fun schedule(c: Context,key: String,time: LocalDateTime) {
         val millis=time.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val am=c.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -104,6 +141,7 @@ object ReminderEngine {
     }
     fun reschedule(c: Context, force: Boolean = false) {
         createChannel(c)
+        JoshWidgetProvider.refreshAll(c)
         val am=c.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val old=JSONArray(prefs(c).getString("scheduledKeys","[]") ?: "[]")
         val previousTimes=JSONObject(prefs(c).getString("alarmTimes","{}") ?: "{}")
@@ -194,10 +232,11 @@ object ReminderEngine {
                             val remaining=(h.optDouble("target",1.0)-(entry?.optDouble("value",0.0)?:0.0)).coerceAtLeast(0.0)
                             "${format(remaining)} ${h.optString("unit","minutes")} left today. Make a little space for yourself."
                         }
-                        "weekly" -> "${weekDone(s,h,date)} of ${h.optInt("weeklyTarget",4)} days this week. Ready for your next check-in?"
+                        "weekly" -> "${weekDone(s,h,date)} of ${target(s,h,date)} days this week. Ready for your next check-in?"
                         else -> "Still on your list today. One small step, at your own pace."
                     }
-                    notify(c,id,h.optString("name"),text,true)
+                    val body=if(settings(c).optString("tone")=="direct")"Still due today. Open your tracker to log progress." else text
+                    notify(c,id,h.optString("name"),body,true)
                 }
                 if(key.startsWith("snooze:")) {
                     val sn=JSONObject(prefs(c).getString("snoozes","{}") ?: "{}")

@@ -13,7 +13,7 @@ class _IntroScreenState extends State<IntroScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 2200),
+    duration:  Duration(milliseconds: 2200),
   );
   bool _started = false;
   bool _finished = false;
@@ -69,14 +69,14 @@ class _IntroScreenState extends State<IntroScreen>
                             width: 104, height: 104),
                       ),
                     ),
-                    const SizedBox(height: 22),
+                     SizedBox(height: 22),
                     Opacity(
                       opacity: title,
                       child: Transform.translate(
                         offset: Offset(0, 12 * (1 - title)),
-                        child: const Column(children: [
+                        child:  Column(children: [
                           Text('Josh Tracker',
-                              style: TextStyle(fontSize: 27,
+                              style: TextStyle(color:Colors.white,fontSize: 27,
                                   fontWeight: FontWeight.w700,
                                   letterSpacing: -0.8)),
                           SizedBox(height: 9),

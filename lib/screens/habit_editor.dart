@@ -32,35 +32,35 @@ class _HabitEditorState extends State<HabitEditor> {
   Widget build(BuildContext context)=>SafeArea(child:SingleChildScrollView(
     padding:EdgeInsets.fromLTRB(24,8,24,24+MediaQuery.of(context).viewInsets.bottom),
     child:Form(key:_form,child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-      Text(widget.habit==null?'A new intention':'Shape your habit',style:const TextStyle(fontSize:27,fontWeight:FontWeight.w600,letterSpacing:-0.7)),gap,
-      TextFormField(controller:_name,maxLength:60,decoration:const InputDecoration(labelText:'Habit name'),validator:(v)=>v==null||v.trim().isEmpty?'Give your habit a name.':null),
-      gap,DropdownButtonFormField<String>(value:_kind,decoration:const InputDecoration(labelText:'How to track'),items:const[
+      Text(widget.habit==null?'A new intention':'Shape your habit',style: TextStyle(fontSize:27,fontWeight:FontWeight.w600,letterSpacing:-0.7)),gap,
+      TextFormField(controller:_name,maxLength:60,decoration: InputDecoration(labelText:'Habit name'),validator:(v)=>v==null||v.trim().isEmpty?'Give your habit a name.':null),
+      gap,DropdownButtonFormField<String>(value:_kind,decoration: InputDecoration(labelText:'How to track'),items:[
         DropdownMenuItem(value:'check',child:Text('Daily checkbox')),
         DropdownMenuItem(value:'quantity',child:Text('Daily amount')),
         DropdownMenuItem(value:'weekly',child:Text('Days per week')),
       ],onChanged:(v)=>setState(()=>_kind=v!)),gap,
-      DropdownButtonFormField<String>(value:_category,decoration:const InputDecoration(labelText:'Category'),items:[for(final c in ['Personal','Health','Learning','Work','Rest'])DropdownMenuItem(value:c,child:Text(c))],onChanged:(v)=>setState(()=>_category=v!)),gap,
+      DropdownButtonFormField<String>(value:_category,decoration: InputDecoration(labelText:'Category'),items:[for(final c in ['Personal','Health','Learning','Work','Rest'])DropdownMenuItem(value:c,child:Text(c))],onChanged:(v)=>setState(()=>_category=v!)),gap,
       if(_kind=='quantity')...[
-        TextFormField(controller:_target,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Daily target'),validator:(v){
+        TextFormField(controller:_target,keyboardType: TextInputType.numberWithOptions(decimal:true),decoration: InputDecoration(labelText:'Daily target'),validator:(v){
           final n=double.tryParse(v??'');return n==null||!n.isFinite||n<=0||n>1000000?'Use a target above zero, up to 1,000,000.':null;
         }),gap,
-        DropdownButtonFormField<String>(value:['minutes','hours','pages','glasses','steps','times'].contains(_unit)?_unit:'times',decoration:const InputDecoration(labelText:'Unit'),
+        DropdownButtonFormField<String>(value:['minutes','hours','pages','glasses','steps','times'].contains(_unit)?_unit:'times',decoration: InputDecoration(labelText:'Unit'),
           items:[for(final u in ['minutes','hours','pages','glasses','steps','times'])DropdownMenuItem(value:u,child:Text(u))],onChanged:(v)=>setState(()=>_unit=v!)),gap,
       ],
       if(_kind=='weekly')...[
-        Text('Complete on $_weekly days each week',style:const TextStyle(color:C.label2)),
+        Text('Complete on $_weekly days each week',style: TextStyle(color:C.label2)),
         Slider(value:_weekly.toDouble(),min:1,max:7,divisions:6,label:'$_weekly days',onChanged:(v)=>setState(()=>_weekly=v.round())),
-        const Text('One check-in counts as one day. The week starts Monday.',style:TextStyle(color:C.label2,fontSize:12)),gap,
+         Text('One check-in counts as one day. The week starts Monday.',style:TextStyle(color:C.label2,fontSize:12)),gap,
       ]else...[
-        const Text('Scheduled days',style:TextStyle(color:C.label2)),const SizedBox(height:8),
+         Text('Scheduled days',style:TextStyle(color:C.label2)), SizedBox(height:8),
         Wrap(spacing:6,children:[for(var i=1;i<=7;i++)FilterChip(label:Text(['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][i-1]),selected:_days.contains(i),onSelected:(on)=>setState((){if(on){_days.add(i);}else{_days.remove(i);}}))]),gap,
       ],
-      SwitchListTile.adaptive(contentPadding:EdgeInsets.zero,title:const Text('Habit reminder'),subtitle:const Text('Only while this habit is unfinished'),value:_remind,onChanged:(v)=>setState(()=>_remind=v)),
-      if(_remind)ListTile(contentPadding:EdgeInsets.zero,title:const Text('Remind me at'),trailing:Text(_formatTime(context,_time)),onTap:()async{
+      SwitchListTile.adaptive(contentPadding:EdgeInsets.zero,title: Text('Habit reminder'),subtitle: Text('Only while this habit is unfinished'),value:_remind,onChanged:(v)=>setState(()=>_remind=v)),
+      if(_remind)ListTile(contentPadding:EdgeInsets.zero,title: Text('Remind me at'),trailing:Text(_formatTime(context,_time)),onTap:()async{
         final t=await showTimePicker(context:context,initialTime:TimeOfDay(hour:_time~/60,minute:_time%60));
         if(t!=null)setState(()=>_time=t.hour*60+t.minute);
       }),
-      if(_remind && store.data.prefs['reminders']!=true)const Text('Also enable notifications in Settings to receive this reminder.',style:TextStyle(color:C.orange,fontSize:12)),gap,
+      if(_remind && store.data.prefs['reminders']!=true) Text('Also enable notifications in Settings to receive this reminder.',style:TextStyle(color:C.orange,fontSize:12)),gap,
       ActionButton(_saving?'Saving…':'Save habit',_saving?null:()async{
         if(!_form.currentState!.validate())return;
         if(_kind!='weekly'&&_days.isEmpty){message(context,'Choose at least one day.');return;}

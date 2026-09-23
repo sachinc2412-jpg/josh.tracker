@@ -1,12 +1,22 @@
-# Josh Tracker 2 — a little better, every day
+# Josh Tracker 3 — a little better, every day
 
-Android / Flutter personal habit tracker with Google and email sign-in, Supabase, an Apple-inspired dark interface, adaptive dashboard, quantity and weekly goals, onboarding, insights, offline edits and native Android reminders.
+Android / Flutter personal habit tracker with Google and email sign-in, Supabase, an Apple-inspired adaptive light/dark interface, adaptive dashboard, quantity and weekly goals, onboarding, insights, offline edits and native Android reminders.
 
 **Start with [START_HERE.md](START_HERE.md). This version requires a one-time Supabase SQL upgrade before cloud sync works.**
 
 Shorebird is not included. This is a source project, not a compiled APK.
 
-## What changed
+## New in V3
+
+Daily priorities, mood/energy check-ins, evening reflections, personal weekly reviews, planned rest and dated habit pauses, milestones, a native Android home-screen widget, and synced theme/accent/voice preferences.
+
+- Today keeps the daily essentials together; History opens date-specific journals.
+- Insights contains weekly reviews and milestones.
+- Settings → Personalization controls appearance, voice and recovery.
+- Run `supabase/UPGRADE_V3.sql` once, including when upgrading from V2. It extends the existing state and sync function without deleting data.
+- The native widget requires a full APK build/install. It is a local snapshot and opens the app for logging.
+
+## Existing features retained
 
 - Dashboard: time-aware greeting, original motivational prompts based on incomplete habits, animated progress ring, next useful action, current streak, weekly wins and bigger goal.
 - Habits: daily checkboxes, measured daily amounts, selected weekdays, and goals such as gym on four days each week. Edit targets, categories and reminder times; archive without deleting earlier history.

@@ -179,7 +179,7 @@ class Store extends ChangeNotifier {
     } catch (e) {
       if (generation != _generation) return;
       syncState = SyncState.waiting;
-      syncError = e is PostgrestException && (e.code == 'PGRST202' || e.code == '42P01')
+      syncError = e is PostgrestException && (e.code == 'PGRST202' || e.code == '42P01' || e.message.contains('Unknown operation'))
           ? 'Cloud upgrade needed. Your changes stay on this device until the included Supabase setup is installed.'
           : 'Could not reach cloud sync. Changes remain queued on this device. Tap Retry when connected.';
     }
@@ -210,6 +210,20 @@ class Store extends ChangeNotifier {
       'created':existing?.created??todayKey,'versions':versions},key:id);
   }
   Future<void> archive(Habit h) => edit('habit',{...h.data,'archived':todayKey},key:h.id);
+  Future<void> saveJournal(String day,String field,Json value)=>edit('journal',value,key:field,day:day);
+  Future<void> saveReview(String week,Json value)=>edit('review',value,key:week);
+  Future<void> restDay(String day,bool rest)=>edit('rest',{'rest':rest},day:day);
+  Future<void> pauseHabit(Habit h,String start,String end,String reason)=>edit('habit',{
+    ...h.data,'pauses':[...(h.data['pauses'] as List? ?? []),{'start':start,'end':end,'reason':reason}],
+  },key:h.id);
+  Future<void> resumeHabit(Habit h) {
+    final pauses=(h.data['pauses'] as List? ?? []).map((raw){
+      final p=jsonMap(raw);
+      if((p['end'] as String).compareTo(todayKey)>=0 && (p['start'] as String).compareTo(todayKey)<=0) return {...p,'end':dayKey(shiftDay(now,-1))};
+      return p;
+    }).where((p)=>(p['end'] as String).compareTo(p['start'] as String)>=0).toList();
+    return edit('habit',{...h.data,'pauses':pauses},key:h.id);
+  }
   Future<void> preferences(Json values) => edit('prefs',values);
   Future<void> updateGoal(Json values) => edit('goal',values);
   Future<void> completeSetup(String displayName, String goal, List<Json> selected, bool enable, int quietStart, int quietEnd) async {

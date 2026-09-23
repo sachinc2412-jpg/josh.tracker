@@ -20,15 +20,30 @@ Future<void> main() async {
     anonKey: Config.supabaseAnonKey,
   );
   await store.init();
-  runApp(const JoshApp());
+  runApp( JoshApp());
 }
 
-class JoshApp extends StatelessWidget {
+class JoshApp extends StatefulWidget {
   const JoshApp({super.key});
+  @override
+  State<JoshApp> createState()=>_JoshAppState();
+}
+class _JoshAppState extends State<JoshApp> with WidgetsBindingObserver {
+  @override
+  void initState(){super.initState();WidgetsBinding.instance.addObserver(this);}
+  @override
+  void dispose(){WidgetsBinding.instance.removeObserver(this);super.dispose();}
+  @override
+  void didChangePlatformBrightness(){setState((){});}
+
 
   @override
-  Widget build(BuildContext context) {
-    final base = ThemeData.dark(useMaterial3: true);
+  Widget build(BuildContext context) => AnimatedBuilder(animation:store,builder:(context,_){
+    final prefs=store.data.prefs,mode=prefs['theme'] as String? ?? 'dark';
+    final light=mode=='light'||(mode=='system'&&WidgetsBinding.instance.platformDispatcher.platformBrightness==Brightness.light);
+    C.configure(light,prefs['accent'] as String? ?? 'blue');
+    final base = light?ThemeData.light(useMaterial3:true):ThemeData.dark(useMaterial3: true);
+    SystemChrome.setSystemUIOverlayStyle(light?SystemUiOverlayStyle.dark:SystemUiOverlayStyle.light);
     return MaterialApp(
       title: 'Josh Tracker',
       debugShowCheckedModeBanner: false,
@@ -38,12 +53,12 @@ class JoshApp extends StatelessWidget {
         dividerColor: C.sep,
         inputDecorationTheme: InputDecorationTheme(
           filled: true, fillColor: C.card2,
-          contentPadding: const EdgeInsets.symmetric(horizontal:16,vertical:16),
+          contentPadding:  EdgeInsets.symmetric(horizontal:16,vertical:16),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-          labelStyle: const TextStyle(color:C.label2),
+          labelStyle:  TextStyle(color:C.label2),
         ),
-        textSelectionTheme: const TextSelectionThemeData(cursorColor: C.blue),
-        pageTransitionsTheme: const PageTransitionsTheme(builders: {
+        textSelectionTheme:  TextSelectionThemeData(cursorColor: C.blue),
+        pageTransitionsTheme:  PageTransitionsTheme(builders: {
           TargetPlatform.android: CupertinoPageTransitionsBuilder(),
           TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
         }),
@@ -57,9 +72,9 @@ class JoshApp extends StatelessWidget {
           displayColor: C.label,
         ),
       ),
-      home: const IntroScreen(child: Root()),
+      home:  IntroScreen(child: Root()),
     );
-  }
+  });
 }
 
 class Root extends StatelessWidget {
@@ -71,28 +86,28 @@ class Root extends StatelessWidget {
       animation: store,
       builder: (context, _) {
         if (!store.ready) {
-          return const Scaffold(
+          return  Scaffold(
             body: Center(child: CircularProgressIndicator(color: C.blue)),
           );
         }
-        if (store.user == null) return const AuthScreen();
+        if (store.user == null) return  AuthScreen();
         if (!store.accountReady) {
           return Scaffold(body: SafeArea(child: Center(child: Padding(
-            padding: const EdgeInsets.all(28),
+            padding:  EdgeInsets.all(28),
             child: Column(mainAxisSize: MainAxisSize.min,children:[
-              if (store.syncError == null) const CircularProgressIndicator()
-              else const Icon(Icons.cloud_off_outlined,size:36,color:C.label2),
-              const SizedBox(height:20),
+              if (store.syncError == null)  CircularProgressIndicator()
+              else  Icon(Icons.cloud_off_outlined,size:36,color:C.label2),
+               SizedBox(height:20),
               Text(store.syncError ?? 'Bringing your progress home…',textAlign:TextAlign.center),
               if (store.syncError != null) ...[
-                const SizedBox(height:20),ActionButton('Try again',store.retry),
-                TextButton(onPressed:store.signOut,child:const Text('Sign out')),
+                 SizedBox(height:20),ActionButton('Try again',store.retry),
+                TextButton(onPressed:store.signOut,child: Text('Sign out')),
               ],
             ]),
           ))));
         }
-        if (store.data.prefs['onboarded'] != true) return const OnboardingScreen();
-        return const HomeScreen();
+        if (store.data.prefs['onboarded'] != true) return  OnboardingScreen();
+        return  HomeScreen();
       },
     );
   }

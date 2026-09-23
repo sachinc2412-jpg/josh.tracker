@@ -31,8 +31,9 @@ class Habit {
       final v = jsonMap(item);
       if ((v['from'] as String).compareTo(day) <= 0) version = v;
     }
-    return version == null ? this : Habit({...data, ...version, 'id': id, 'archived': archived});
+    return version == null ? this : Habit({...data, ...version, 'id': id, 'archived': archived, 'pauses': data['pauses']});
   }
+  bool paused(String day) => (data['pauses'] as List? ?? []).any((p) => day.compareTo(p['start'] as String)>=0 && day.compareTo(p['end'] as String)<=0);
   bool scheduled(DateTime day) => active(dayKey(day)) && (kind == 'weekly' || weekdays.contains(day.weekday));
   String get targetLabel => kind == 'weekly' ? '$weeklyTarget days / week' : kind == 'quantity' ? '${number(target)} $unit / day' : 'Daily check-in';
   double get dailyTarget => kind == 'quantity' ? target : 1;
@@ -67,6 +68,34 @@ class TrackerData {
     model.goal.addAll(jsonMap(old['goal']));
     return model;
   }
+  Json get journalMap => json.putIfAbsent('journal',()=> <String,dynamic>{}) as Json;
+  Json get reviews => json.putIfAbsent('reviews',()=> <String,dynamic>{}) as Json;
+  Json get restDays => json.putIfAbsent('restDays',()=> <String,dynamic>{}) as Json;
+  Json journal(String day) => jsonMap(journalMap[day]);
+  bool rest(DateTime day) {
+    final key=dayKey(day),override=jsonMap(restDays[key]);
+    if(override.containsKey('rest'))return override['rest']==true;
+    List<dynamic> days=[];
+    final versions=prefs['restVersions'] as List? ?? [];
+    if(versions.isEmpty){
+      if(key.compareTo(prefs['restFrom'] as String? ?? '1970-01-01')>=0)days=prefs['restWeekdays'] as List? ?? [];
+    }else{
+      for(final v in versions){if(key.compareTo(v['from'] as String)<0)continue;days=v['days'] as List;}
+    }
+    return days.contains(day.weekday);
+  }
+  bool scheduled(Habit h, DateTime day) => h.scheduled(day) && !rest(day) && !h.paused(dayKey(day));
+  bool protectedRest(DateTime day) {
+    if(rest(day))return true;
+    final planned=allHabits.where((h)=>h.on(dayKey(day)).scheduled(day));
+    return planned.isNotEmpty && planned.every((h)=>h.paused(dayKey(day)));
+  }
+  int weeklyTargetFor(Habit h,DateTime day) {
+    final start=monday(day);
+    var available=0;
+    for(var i=0;i<7;i++){final d=shiftDay(start,i);if(scheduled(h.on(dayKey(d)),d))available++;}
+    return math.min(h.weeklyTarget,available);
+  }
   Json get habitMap => json['habits'] as Json;
   Json get logs => json['log'] as Json;
   Json get goal => json['goal'] as Json;
@@ -85,12 +114,12 @@ class TrackerData {
     var count = 0;
     for (var i = 0; i <= now.weekday - 1; i++) {
       final d = shiftDay(start, i);
-      if (h.active(dayKey(d)) && completed(h, dayKey(d))) count++;
+      if (scheduled(h.on(dayKey(d)),d) && completed(h, dayKey(d))) count++;
     }
     return count;
   }
-  List<Habit> due(DateTime now) => habits.where((h) => h.scheduled(now) &&
-    (h.kind != 'weekly' || weekDone(h, now) < h.weeklyTarget || completed(h, dayKey(now)))).toList();
+  List<Habit> due(DateTime now) => habits.where((h) => scheduled(h,now) &&
+    (h.kind != 'weekly' || weekDone(h, now) < weeklyTargetFor(h,now) || completed(h, dayKey(now)))).toList();
   List<Habit> remaining(DateTime now) => due(now).where((h) => !completed(h, dayKey(now))).toList();
   double progress(DateTime now) {
     final list = due(now);
@@ -98,24 +127,48 @@ class TrackerData {
     return list.fold<double>(0, (n,h) => n + (value(h.id, dayKey(now)) / h.dailyTarget).clamp(0,1)) / list.length;
   }
   int get bestStreak {
-    final days = logs.keys.where((day) => allHabits.any((h) => completed(h, day))).toList()..sort();
-    var best = 0, current = 0;
-    DateTime? previous;
-    for (final key in days) {
-      final date = DateTime.parse(key);
-      current = previous != null && dayKey(shiftDay(previous,1)) == key ? current + 1 : 1;
-      best = math.max(best, current);
-      previous = date;
+    final keys=logs.keys.toList()..sort();
+    if(keys.isEmpty)return 0;
+    var current=0,best=0;
+    for(var d=DateTime.parse(keys.first);dayKey(d).compareTo(keys.last)<=0;d=shiftDay(d,1)) {
+      if(protectedRest(d))continue;
+      if(allHabits.any((h)=>completed(h,dayKey(d)))){current++;best=math.max(best,current);}else{current=0;}
     }
     return best;
   }
   int streak(DateTime now) {
-    var day = dateOnly(now);
-    bool active(DateTime d) => allHabits.any((h) => completed(h, dayKey(d)));
-    if (!active(day)) day = shiftDay(day,-1);
-    var count = 0;
-    while (active(day)) { count++; day = shiftDay(day,-1); }
+    final keys=logs.keys.toList()..sort();
+    if(keys.isEmpty)return 0;
+    var d=dateOnly(now),count=0;
+    if(!allHabits.any((h)=>completed(h,dayKey(d))) && !protectedRest(d))d=shiftDay(d,-1);
+    while(dayKey(d).compareTo(keys.first)>=0) {
+      if(protectedRest(d)){d=shiftDay(d,-1);continue;}
+      if(!allHabits.any((h)=>completed(h,dayKey(d))))break;
+      count++;d=shiftDay(d,-1);
+    }
     return count;
+  }
+  List<Milestone> get milestones {
+    var wins=0;double minutes=0;
+    for(final day in logs.keys){for(final h in allHabits){
+      if(completed(h,day))wins++;
+      final old=h.on(day), e=entry(h.id,day);
+      if(old.category=='Learning' && (e['unit']=='minutes'||e['unit']=='hours'))minutes+=value(h.id,day)*(e['unit']=='hours'?60:1);
+    }}
+    final best=bestStreak.toDouble();
+    return [
+      for(final goal in [1,10,25,50,100,250])Milestone('wins_$goal',goal==1?'Your first small win':'$goal small wins','Completed habit check-ins',wins.toDouble(),goal.toDouble()),
+      for(final goal in [3,7,14,30])Milestone('streak_$goal','$goal active days','Best streak, with planned rest protected',best,goal.toDouble()),
+      for(final goal in [10,20,50,100])Milestone('learn_$goal','$goal hours of learning','Time you made for growth',minutes/60,goal.toDouble()),
+    ];
+  }
+  String reviewSummary(DateTime sunday) {
+    final stats=week(sunday);
+    if(stats.possible==0)return 'No scheduled habits this week. Choose one small intention for the week ahead.';
+    final ranked=stats.byHabit.entries.toList()..sort((a,b)=>b.value.compareTo(a.value));
+    final strongest=allHabits.firstWhere((h)=>h.id==ranked.first.key).name;
+    return '${stats.done} of ${stats.possible} planned opportunities completed. $strongest was your most consistent habit. '
+      '${stats.rate>=0.8?'Keep the rhythm that worked.':'Choose one habit to make easier next week.'}';
   }
   WeekStats week(DateTime now, {int offset = 0}) {
     final start = shiftDay(monday(now), offset * 7);
@@ -129,12 +182,12 @@ class TrackerData {
         final date = shiftDay(start,i);
         final key = dayKey(date);
         final h = original.on(key);
-        if (!h.scheduled(date)) continue;
+        if (!scheduled(h,date)) continue;
         hp++;
         if (completed(original,key)) hd++;
       }
       if (weekH.kind == 'weekly' && hp > 0) {
-        hp = math.min(weekH.weeklyTarget, 7); // full weekly goal, not a daily quota
+        hp = weeklyTargetFor(weekH, start); // full weekly goal, not a daily quota
         hd = math.min(hd, hp);
       }
       done += hd; possible += hp;
@@ -150,9 +203,22 @@ class TrackerData {
       final day = op['day'] as String;
       logs[day] = {...jsonMap(logs[day]), op['key'] as String:value};
     }
+    if(type=='journal') {
+      final day=op['day'] as String;
+      journalMap[day]={...journal(day),op['key'] as String:value};
+    }
+    if(type=='review')reviews[op['key'] as String]=value;
+    if(type=='rest')restDays[op['day'] as String]=value;
     if (type == 'prefs') prefs.addAll(value);
     if (type == 'goal') goal.addAll(value);
   }
+}
+
+class Milestone {
+  const Milestone(this.id,this.title,this.detail,this.value,this.target);
+  final String id,title,detail;
+  final double value,target;
+  bool get earned=>value>=target;
 }
 
 class WeekStats {
@@ -165,6 +231,8 @@ class WeekStats {
 String greeting(DateTime now) => now.hour < 5 ? 'A quiet moment' : now.hour < 12 ? 'Good morning' : now.hour < 17 ? 'Good afternoon' : 'Good evening';
 String focusQuote(TrackerData data, DateTime now) {
   final left = data.remaining(now);
+  if(data.rest(now))return 'Today is for recovery. Rest belongs in your rhythm.';
+  if(data.prefs['tone']=='direct')return data.due(now).isEmpty?'No habits scheduled today.':left.isEmpty?'Today’s plan is complete.':'${left.length} habits left. Pick the next action and begin.';
   if (data.due(now).isEmpty) return 'Room to breathe. Your next step can wait.';
   if (left.isEmpty) return 'You showed up for yourself. Let that be enough today.';
   if (now.hour >= 22 || now.hour < 5) return 'Rest is part of progress. Tomorrow is another chance.';
